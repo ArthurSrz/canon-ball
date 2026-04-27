@@ -11,8 +11,8 @@ import subprocess
 import time
 from pathlib import Path
 
-from experiment import run_experiment, save_experiment, load_experiment
-from analysis import full_analysis
+from canon_experiment import run_experiment, save_experiment, load_experiment
+from canon_analysis import full_analysis
 
 
 st.set_page_config(page_title="Canon Ball", page_icon="🎯", layout="wide")

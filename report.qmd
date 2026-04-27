@@ -23,7 +23,7 @@ Instead of hand-waving about holism, this experiment measures it. We throw the s
 import json
 import numpy as np
 import plotly.graph_objects as go
-from analysis import full_analysis, compute_per_trial_centroids
+from canon_analysis import full_analysis, compute_per_trial_centroids
 
 data = json.loads(open("results/experiment.json").read())
 results = full_analysis(data)
