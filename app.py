@@ -509,7 +509,7 @@ function App() {{
             <div className="metric-inline">
               <div className="kicker">Dispersion ratio</div>
               <div className="val ok tabular">{{verdict.ratio.toFixed(3)}}</div>
-              <div className={{`delta ${{verdict.tighter ? "dn" : ""}}`}}>{{verdict.tighter ? "−" : "+"}}{{""}}{Math.abs(verdict.reduction).toFixed(1)}}%</div>
+              <div className={{`delta ${{verdict.tighter ? "dn" : ""}}`}}>{{verdict.tighter ? "−" : "+"}}{{Math.abs(verdict.reduction).toFixed(1)}}%</div>
             </div>
             <div className="metric-inline">
               <div className="kicker">p-value</div>
