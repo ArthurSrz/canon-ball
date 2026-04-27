@@ -15,9 +15,8 @@ from canon_experiment import run_experiment, save_experiment, load_experiment
 from canon_analysis import full_analysis
 
 
-_has_results = Path("results/analysis.json").exists()
 st.set_page_config(page_title="Canon Ball", page_icon="🎯", layout="wide",
-                   initial_sidebar_state="collapsed" if _has_results else "expanded")
+                   initial_sidebar_state="expanded")
 
 # Hide default Streamlit chrome for immersive UI
 st.markdown("""<style>
