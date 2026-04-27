@@ -20,9 +20,8 @@ st.set_page_config(page_title="Canon Ball", page_icon="🎯", layout="wide",
 
 # Hide default Streamlit chrome for immersive UI
 st.markdown("""<style>
-#MainMenu, footer, [data-testid="stToolbar"], [data-testid="stDecoration"] { display: none !important; }
-header[data-testid="stHeader"] { background: transparent !important; height: 0 !important; min-height: 0 !important; }
-div.stMainBlockContainer { padding-top: 1rem !important; }
+#MainMenu, footer, [data-testid="stDecoration"] { display: none !important; }
+header[data-testid="stHeader"] { background: #07090c !important; }
 [data-testid="stSidebar"] { background: #0c1014; }
 [data-testid="stSidebar"] .stTextArea textarea,
 [data-testid="stSidebar"] .stTextArea label,
@@ -34,21 +33,10 @@ div.stMainBlockContainer { padding-top: 1rem !important; }
 }
 section[data-testid="stSidebar"] { border-right: 1px solid rgba(180,200,230,0.12); }
 .stApp { background: #07090c; }
-
-/* Setup popover button */
-div[data-testid="stPopover"] { position: fixed !important; top: 12px; left: 12px; z-index: 999999; }
-div[data-testid="stPopover"] button {
-    background: rgba(12,16,20,0.85) !important; border: 1px solid rgba(180,200,230,0.22) !important;
-    color: #b8c2cf !important; font-family: "JetBrains Mono", monospace !important;
-    font-size: 10.5px !important; letter-spacing: 0.14em; text-transform: uppercase;
-    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
-    padding: 7px 14px !important; border-radius: 4px !important;
-}
-div[data-testid="stPopover"] button:hover { border-color: #4ad6c8 !important; color: #e8edf3 !important; }
 </style>""", unsafe_allow_html=True)
 
-# --- Experiment Configuration via popover ---
-with st.popover("☰ SETUP", use_container_width=False):
+# --- Experiment Configuration via sidebar ---
+with st.sidebar:
     prompt = st.text_area(
         "Prompt · the throw",
         value='Tu vas m\'aider à préparer la course d\'alpinisme "les arêtes du Gerbier" situées dans le Vercors',
