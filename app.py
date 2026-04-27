@@ -287,19 +287,21 @@ if run_btn and not st.session_state.get("running"):
         sidebar_status = st.empty()
         sidebar_status.markdown("**Firing sequence initiated...**")
 
-    cannon_area.components.v1.html(
-        cannon_animation_html(0, n_trials * 2, "Initializing...", 0.0),
-        height=620, scrolling=False
-    )
+    with cannon_area.container():
+        components.html(
+            cannon_animation_html(0, n_trials * 2, "Initializing...", 0.0),
+            height=620, scrolling=False
+        )
 
     def on_progress(pct, msg):
         sidebar_progress.progress(pct)
         sidebar_status.markdown(f"**{msg}**")
         shot_counter[0] += 1
-        cannon_area.components.v1.html(
-            cannon_animation_html(shot_counter[0], n_trials * 2, msg, pct),
-            height=620, scrolling=False
-        )
+        with cannon_area.container():
+            components.html(
+                cannon_animation_html(shot_counter[0], n_trials * 2, msg, pct),
+                height=620, scrolling=False
+            )
 
     try:
         experiment = run_experiment(prompt, knowledge_layer, n_trials, progress_callback=on_progress)
