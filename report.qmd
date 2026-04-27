@@ -1,0 +1,107 @@
+---
+title: "Canon Ball — Measuring Holism"
+subtitle: "What does a knowledge layer add to an LLM?"
+format:
+  html:
+    theme: cosmo
+    toc: true
+    code-fold: true
+    self-contained: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+## The Experiment
+
+> "We say 'gestalt' when things combine to act in ways we can't explain."
+
+Instead of hand-waving about holism, this experiment measures it. We throw the same prompt at an LLM multiple times — once naked (control), once with a knowledge layer (test) — and track where the outputs land in semantic space.
+
+```{python}
+import json
+import numpy as np
+import plotly.graph_objects as go
+from analysis import full_analysis, compute_per_trial_centroids
+
+data = json.loads(open("results/experiment.json").read())
+results = full_analysis(data)
+```
+
+## Setup
+
+**Prompt**: `{python} data["prompt"]`
+
+**Knowledge Layer**:
+```
+{python}
+print(data["knowledge_layer"])
+```
+
+**Trials per group**: `{python} data["n_trials"]`
+
+## Semantic Space Map
+
+Each small dot is a semantic chunk from an output. Large markers are per-trial centroids — where each "ball" landed.
+
+```{python}
+proj = results["projection"]
+ctrl_pts = np.array(proj["control_points"])
+test_pts = np.array(proj["test_points"])
+ctrl_c = np.array(proj["control_centroids"])
+test_c = np.array(proj["test_centroids"])
+
+fig = go.Figure()
+fig.add_trace(go.Scatter(x=ctrl_pts[:,0], y=ctrl_pts[:,1], mode="markers",
+    name="Control chunks", marker=dict(size=4, color="rgba(99,110,250,0.3)")))
+fig.add_trace(go.Scatter(x=test_pts[:,0], y=test_pts[:,1], mode="markers",
+    name="Test chunks", marker=dict(size=4, color="rgba(239,85,59,0.3)")))
+fig.add_trace(go.Scatter(x=ctrl_c[:,0], y=ctrl_c[:,1], mode="markers",
+    name="Control centroids", marker=dict(size=12, color="rgb(99,110,250)", symbol="circle",
+    line=dict(width=2, color="white"))))
+fig.add_trace(go.Scatter(x=test_c[:,0], y=test_c[:,1], mode="markers",
+    name="Test centroids", marker=dict(size=12, color="rgb(239,85,59)", symbol="diamond",
+    line=dict(width=2, color="white"))))
+fig.update_layout(title="Where the Ball Lands", xaxis_title="UMAP-1", yaxis_title="UMAP-2", height=500)
+fig.show()
+```
+
+## Precision Metrics
+
+```{python}
+comp = results["comparison"]
+print(f"Control dispersion (mean ± std): {comp['control_mean_dispersion']:.4f} ± {comp['control_std_dispersion']:.4f}")
+print(f"Test dispersion (mean ± std):    {comp['test_mean_dispersion']:.4f} ± {comp['test_std_dispersion']:.4f}")
+print(f"Dispersion ratio (test/control): {comp['dispersion_ratio']:.4f}")
+print(f"Centroid shift (cosine):         {comp['centroid_shift_cosine']:.4f}")
+print(f"Centroid shift (euclidean):      {comp['centroid_shift_euclidean']:.4f}")
+print(f"Mann-Whitney p-value:            {comp['mann_whitney_pvalue']:.4f}")
+```
+
+## Interpretation
+
+```{python}
+ratio = comp["dispersion_ratio"]
+if ratio < 1:
+    print(f"The knowledge layer TIGHTENS the landing zone by {(1-ratio)*100:.1f}%.")
+    print("The launching ramp improves precision — outputs cluster more consistently.")
+elif ratio > 1:
+    print(f"The knowledge layer WIDENS the landing zone by {(ratio-1)*100:.1f}%.")
+    print("The knowledge layer introduces more semantic diversity.")
+else:
+    print("No measurable difference in dispersion.")
+
+if comp["centroid_shift_cosine"] > 0.01:
+    print(f"\nThe knowledge layer STEERS outputs — cosine shift of {comp['centroid_shift_cosine']:.4f}.")
+    print("The ramp doesn't just tighten the zone, it moves it.")
+```
+
+## What "More Than The Sum" Means, Measured
+
+The knowledge layer contributes two measurable effects:
+
+1. **Steering** (centroid shift): it moves *where* the ball tends to land
+2. **Focusing** (dispersion change): it changes *how consistently* the ball lands there
+
+The "holistic" effect — the thing that's "more than the sum of parts" — is captured by the interaction between these two: the knowledge layer doesn't just add information, it reshapes the probability landscape the LLM navigates.

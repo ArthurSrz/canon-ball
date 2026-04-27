@@ -1,0 +1,9 @@
+streamlit>=1.30.0
+numpy
+scikit-learn
+scipy
+plotly
+requests
+umap-learn
+pandas
+fastembed
