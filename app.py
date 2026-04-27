@@ -66,33 +66,42 @@ and supervised by **high mountain guides** (Q819677).""",
     n_trials = st.slider("Trials per group", 3, 20, 12)
     run_btn = st.button("Fire experiment", type="primary", use_container_width=True)
 
+    # Progress lives in sidebar, right below the button
+    sidebar_progress = st.empty()
+    sidebar_status = st.empty()
+
 # --- Run experiment ---
 results_path = Path("results/experiment.json")
 analysis_path = Path("results/analysis.json")
 
 if run_btn and not st.session_state.get("running"):
     st.session_state["running"] = True
-    progress_bar = st.progress(0.0)
-    status = st.empty()
+
+    with st.sidebar:
+        sidebar_progress = st.progress(0.0)
+        sidebar_status = st.empty()
+        sidebar_status.markdown("**Firing sequence initiated...**")
 
     def on_progress(pct, msg):
-        progress_bar.progress(pct)
-        status.markdown(f"<p style='font-family:monospace;font-size:11px;color:#8590a0;letter-spacing:0.1em;text-transform:uppercase'>{msg}</p>", unsafe_allow_html=True)
+        sidebar_progress.progress(pct)
+        sidebar_status.markdown(f"**{msg}**")
 
     try:
         experiment = run_experiment(prompt, knowledge_layer, n_trials, progress_callback=on_progress)
         save_experiment(experiment)
 
-        status.markdown("<p style='font-family:monospace;font-size:11px;color:#8590a0;letter-spacing:0.1em;text-transform:uppercase'>Analyzing semantic space...</p>", unsafe_allow_html=True)
+        sidebar_status.markdown("**Analyzing semantic space...**")
         data = load_experiment()
         results = full_analysis(data)
 
         with open("results/analysis.json", "w") as f:
             json.dump(results, f, indent=2)
 
-        progress_bar.progress(1.0)
-        status.empty()
-        progress_bar.empty()
+        sidebar_progress.progress(1.0)
+        sidebar_status.markdown("**Done! Results ready.**")
+        time.sleep(1)
+        sidebar_progress.empty()
+        sidebar_status.empty()
     except Exception as e:
         st.error(f"Experiment failed: {e}")
     finally:
