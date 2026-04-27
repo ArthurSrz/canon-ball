@@ -20,7 +20,9 @@ st.set_page_config(page_title="Canon Ball", page_icon="🎯", layout="wide",
 
 # Hide default Streamlit chrome for immersive UI
 st.markdown("""<style>
-#MainMenu, footer, header, [data-testid="stToolbar"] { display: none !important; }
+#MainMenu, footer, [data-testid="stToolbar"] { display: none !important; }
+header [data-testid="stDecoration"] { display: none !important; }
+button[data-testid="stSidebarCollapsedControl"] { display: flex !important; }
 [data-testid="stSidebar"] { background: #0c1014; }
 [data-testid="stSidebar"] .stTextArea textarea,
 [data-testid="stSidebar"] .stTextArea label,
