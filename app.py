@@ -21,9 +21,8 @@ st.set_page_config(page_title="Canon Ball", page_icon="🎯", layout="wide",
 # Hide default Streamlit chrome for immersive UI
 st.markdown("""<style>
 #MainMenu, footer, [data-testid="stToolbar"], [data-testid="stDecoration"] { display: none !important; }
-header[data-testid="stHeader"] { background: transparent !important; }
-[data-testid="collapsedControl"] { display: flex !important; visibility: visible !important; }
-button[kind="headerNoPadding"] { display: flex !important; visibility: visible !important; }
+header[data-testid="stHeader"] { background: transparent !important; height: 0 !important; min-height: 0 !important; }
+div.stMainBlockContainer { padding-top: 1rem !important; }
 [data-testid="stSidebar"] { background: #0c1014; }
 [data-testid="stSidebar"] .stTextArea textarea,
 [data-testid="stSidebar"] .stTextArea label,
@@ -35,7 +34,38 @@ button[kind="headerNoPadding"] { display: flex !important; visibility: visible !
 }
 section[data-testid="stSidebar"] { border-right: 1px solid rgba(180,200,230,0.12); }
 .stApp { background: #07090c; }
+
+/* Floating setup button */
+.setup-btn {
+    position: fixed; top: 14px; left: 14px; z-index: 999999;
+    background: rgba(12,16,20,0.85); border: 1px solid rgba(180,200,230,0.22);
+    color: #b8c2cf; padding: 7px 14px; border-radius: 4px; cursor: pointer;
+    font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 10.5px;
+    letter-spacing: 0.14em; text-transform: uppercase;
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    display: flex; align-items: center; gap: 8px;
+    transition: border-color 120ms, color 120ms;
+}
+.setup-btn:hover { border-color: #4ad6c8; color: #e8edf3; }
+.setup-btn svg { width: 14px; height: 14px; }
 </style>""", unsafe_allow_html=True)
+
+# Floating setup button that triggers sidebar via JS
+st.markdown("""
+<button class="setup-btn" onclick="
+    var btn = window.parent.document.querySelector('[data-testid=\\'collapsedControl\\'] button')
+        || window.parent.document.querySelector('button[kind=\\'headerNoPadding\\']')
+        || window.parent.document.querySelector('[data-testid=\\'baseButton-header\\']');
+    if (btn) btn.click();
+    else { var sb = window.parent.document.querySelector('[data-testid=\\'stSidebar\\']');
+           if (sb) sb.setAttribute('aria-expanded', 'true'); }
+">
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+  <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+</svg>
+SETUP
+</button>
+""", unsafe_allow_html=True)
 
 # --- Sidebar: Experiment Configuration ---
 with st.sidebar:
