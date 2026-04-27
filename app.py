@@ -18,22 +18,7 @@ from canon_analysis import full_analysis
 st.set_page_config(page_title="Canon Ball", page_icon="🎯", layout="wide",
                    initial_sidebar_state="expanded")
 
-# Hide default Streamlit chrome for immersive UI
-st.markdown("""<style>
-#MainMenu, footer, [data-testid="stDecoration"] { display: none !important; }
-header[data-testid="stHeader"] { background: #07090c !important; }
-[data-testid="stSidebar"] { background: #0c1014; }
-[data-testid="stSidebar"] .stTextArea textarea,
-[data-testid="stSidebar"] .stTextArea label,
-[data-testid="stSidebar"] .stSlider label,
-[data-testid="stSidebar"] h2 { color: #b8c2cf !important; }
-[data-testid="stSidebar"] .stTextArea textarea {
-    background: #11161c; border-color: rgba(180,200,230,0.22); color: #e8edf3;
-    font-family: "JetBrains Mono", monospace; font-size: 11.5px;
-}
-section[data-testid="stSidebar"] { border-right: 1px solid rgba(180,200,230,0.12); }
-.stApp { background: #07090c; }
-</style>""", unsafe_allow_html=True)
+st.markdown("<style>footer { display: none !important; }</style>", unsafe_allow_html=True)
 
 # --- Experiment Configuration via sidebar ---
 with st.sidebar:
