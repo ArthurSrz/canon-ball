@@ -74,17 +74,232 @@ and supervised by **high mountain guides** (Q819677).""",
 results_path = Path("results/experiment.json")
 analysis_path = Path("results/analysis.json")
 
+def cannon_animation_html(shot_count, total_shots, current_msg, progress_pct):
+    """Generate the cannon firing overlay as self-contained HTML."""
+    import random
+    shots_js = []
+    for i in range(shot_count):
+        kind = "control" if i < total_shots // 2 else "test"
+        spread = 70 if kind == "control" else 38
+        dx = random.uniform(-spread, spread)
+        dy = random.uniform(-spread, spread)
+        shots_js.append(f'{{"kind":"{kind}","dx":{dx:.1f},"dy":{dy:.1f},"idx":{i}}}')
+    shots_json = "[" + ",".join(shots_js) + "]"
+
+    return f"""<!doctype html>
+<html><head>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Fraunces:ital,wght@1,400;1,500&display=swap" rel="stylesheet">
+<style>
+* {{ box-sizing: border-box; }}
+html, body {{ margin:0; padding:0; background:#07090c; overflow:hidden; }}
+.cannon-stage {{
+  position:relative; width:100%; height:100vh;
+  border:1px solid rgba(180,200,230,0.12);
+  background: radial-gradient(circle at 50% 90%, rgba(74,214,200,0.05), transparent 60%), #0c1014;
+  overflow:hidden;
+}}
+.cannon-readout {{
+  position:absolute; top:18px; left:18px;
+  font-family:"JetBrains Mono",monospace; font-size:10.5px;
+  letter-spacing:0.14em; text-transform:uppercase; color:#8590a0;
+  display:flex; flex-direction:column; gap:4px;
+}}
+.cannon-readout b {{ color:#e8edf3; font-weight:500; }}
+.live {{ display:inline-flex; align-items:center; gap:6px; }}
+.dot {{ width:6px; height:6px; border-radius:50%; background:#ff5d6c;
+  box-shadow:0 0 8px #ff5d6c; animation:pulse 1s ease-in-out infinite; }}
+@keyframes pulse {{ 0%,100% {{ opacity:1; }} 50% {{ opacity:0.35; }} }}
+.pbar {{
+  position:absolute; bottom:18px; left:18px; right:18px; height:22px;
+  display:flex; align-items:center; gap:12px;
+}}
+.track {{ flex:1; height:2px; background:rgba(180,200,230,0.22); border-radius:2px; position:relative; }}
+.fill {{ position:absolute; inset:0 auto 0 0; background:#4ad6c8;
+  box-shadow:0 0 8px rgba(74,214,200,0.55); border-radius:2px;
+  width:{progress_pct*100:.1f}%; transition:width 300ms linear; }}
+.pct {{ font-family:"JetBrains Mono",monospace; font-size:11px;
+  font-variant-numeric:tabular-nums; color:#b8c2cf; min-width:40px; text-align:right; }}
+</style>
+</head><body>
+<div class="cannon-stage">
+<svg viewBox="0 0 1100 619" preserveAspectRatio="xMidYMid meet" style="position:absolute;inset:0;width:100%;height:100%">
+  <defs>
+    <pattern id="cgrid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(120,200,255,0.06)" stroke-width="0.5"/>
+    </pattern>
+    <pattern id="cgrid-major" width="200" height="200" patternUnits="userSpaceOnUse">
+      <path d="M 200 0 L 0 0 0 200" fill="none" stroke="rgba(120,200,255,0.12)" stroke-width="0.6"/>
+    </pattern>
+    <radialGradient id="muzzle" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%" stop-color="rgba(255,200,100,1)"/>
+      <stop offset="40%" stop-color="rgba(255,140,60,0.6)"/>
+      <stop offset="100%" stop-color="rgba(255,140,60,0)"/>
+    </radialGradient>
+    <radialGradient id="ctrlGlow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%" stop-color="rgba(255,181,71,0.5)"/>
+      <stop offset="100%" stop-color="rgba(255,181,71,0)"/>
+    </radialGradient>
+    <radialGradient id="testGlow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%" stop-color="rgba(74,214,200,0.5)"/>
+      <stop offset="100%" stop-color="rgba(74,214,200,0)"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1100" height="619" fill="url(#cgrid)"/>
+  <rect width="1100" height="619" fill="url(#cgrid-major)"/>
+
+  <!-- Semantic surface horizon -->
+  <line x1="0" y1="539" x2="1100" y2="539" stroke="rgba(180,200,230,0.18)" stroke-dasharray="2 6"/>
+  <text x="20" y="531" font-family="JetBrains Mono,monospace" font-size="10" fill="rgba(138,144,160,0.6)" letter-spacing="0.14em">SEMANTIC SURFACE</text>
+
+  <!-- Control target -->
+  <circle cx="820" cy="399" r="80" fill="url(#ctrlGlow)"/>
+  <circle cx="820" cy="399" r="60" fill="none" stroke="rgba(255,181,71,0.25)" stroke-width="0.8" stroke-dasharray="3 4"/>
+  <circle cx="820" cy="399" r="40" fill="none" stroke="rgba(255,181,71,0.3)" stroke-width="0.8" stroke-dasharray="3 4"/>
+  <circle cx="820" cy="399" r="3" fill="rgba(255,181,71,0.9)"/>
+  <text x="820" y="499" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="10" fill="rgba(255,181,71,0.7)" letter-spacing="0.14em">CONTROL · ∅</text>
+
+  <!-- Test target -->
+  <circle cx="920" cy="339" r="60" fill="url(#testGlow)"/>
+  <circle cx="920" cy="339" r="42" fill="none" stroke="rgba(74,214,200,0.3)" stroke-width="0.8" stroke-dasharray="3 4"/>
+  <circle cx="920" cy="339" r="24" fill="none" stroke="rgba(74,214,200,0.4)" stroke-width="0.8" stroke-dasharray="3 4"/>
+  <circle cx="920" cy="339" r="3" fill="rgba(74,214,200,0.9)"/>
+  <text x="920" y="419" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="10" fill="rgba(74,214,200,0.85)" letter-spacing="0.14em">TEST · KL</text>
+
+  <!-- Cannon -->
+  <g transform="translate(140, 439)">
+    <rect x="-40" y="-4" width="80" height="40" fill="#1a2230" stroke="rgba(180,200,230,0.3)" stroke-width="0.8"/>
+    <circle cx="-22" cy="36" r="14" fill="#1a2230" stroke="rgba(180,200,230,0.4)" stroke-width="0.8"/>
+    <circle cx="-22" cy="36" r="3" fill="rgba(180,200,230,0.4)"/>
+    <circle cx="22" cy="36" r="14" fill="#1a2230" stroke="rgba(180,200,230,0.4)" stroke-width="0.8"/>
+    <circle cx="22" cy="36" r="3" fill="rgba(180,200,230,0.4)"/>
+    <path d="M -40 36 L 40 36" stroke="rgba(180,200,230,0.3)" stroke-width="1"/>
+    <g transform="rotate(-12)">
+      <rect x="-10" y="-14" width="92" height="20" rx="2" fill="#0e1620" stroke="rgba(74,214,200,0.5)" stroke-width="0.8"/>
+      <rect x="78" y="-16" width="6" height="24" rx="1" fill="#0e1620" stroke="rgba(74,214,200,0.6)" stroke-width="0.8"/>
+      <circle cx="0" cy="-4" r="3" fill="#1a2230" stroke="rgba(180,200,230,0.5)" stroke-width="0.7"/>
+      <line x1="20" y1="-14" x2="20" y2="-22" stroke="rgba(74,214,200,0.6)" stroke-width="0.6"/>
+      <circle cx="20" cy="-23" r="1.4" fill="rgba(74,214,200,0.8)"/>
+      <circle cx="86" cy="-4" r="22" fill="url(#muzzle)" opacity="0.8">
+        <animate attributeName="opacity" values="0.8;0;0.8" dur="0.8s" repeatCount="indefinite"/>
+      </circle>
+    </g>
+    <text x="0" y="22" text-anchor="middle" font-family="Fraunces,serif" font-style="italic" font-size="11" fill="rgba(180,200,230,0.8)">Canon</text>
+  </g>
+
+  <!-- Channel labels -->
+  <text x="20" y="40" font-family="JetBrains Mono,monospace" font-size="10" fill="rgba(90,100,115,0.9)" letter-spacing="0.14em">CH1 · CONTROL</text>
+  <text x="20" y="56" font-family="JetBrains Mono,monospace" font-size="10" fill="rgba(255,181,71,0.7)" letter-spacing="0.14em">∅ KNOWLEDGE LAYER</text>
+  <text x="20" y="589" font-family="JetBrains Mono,monospace" font-size="10" fill="rgba(90,100,115,0.9)" letter-spacing="0.14em">CH2 · TEST</text>
+  <text x="20" y="605" font-family="JetBrains Mono,monospace" font-size="10" fill="rgba(74,214,200,0.7)" letter-spacing="0.14em">+ KNOWLEDGE LAYER</text>
+
+  <!-- Range markings -->
+  <line x1="275" y1="539" x2="275" y2="535" stroke="rgba(180,200,230,0.3)"/>
+  <text x="275" y="553" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="rgba(90,100,115,0.8)">25m</text>
+  <line x1="550" y1="539" x2="550" y2="535" stroke="rgba(180,200,230,0.3)"/>
+  <text x="550" y="553" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="rgba(90,100,115,0.8)">50m</text>
+  <line x1="825" y1="539" x2="825" y2="535" stroke="rgba(180,200,230,0.3)"/>
+  <text x="825" y="553" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="rgba(90,100,115,0.8)">75m</text>
+
+  <!-- Animated trajectories -->
+  <script type="text/javascript">
+  <![CDATA[
+    var shots = {shots_json};
+    var svg = document.querySelector('svg');
+    var cannonX = 220, cannonY = 433;
+    var ctrlX = 820, ctrlY = 399, testX = 920, testY = 339;
+
+    shots.forEach(function(s, i) {{
+      var tx = (s.kind === 'control' ? ctrlX : testX) + s.dx;
+      var ty = (s.kind === 'control' ? ctrlY : testY) + s.dy;
+      var cx = (cannonX + tx) / 2;
+      var cy = Math.min(cannonY, ty) - 240;
+      var path = 'M ' + cannonX + ' ' + cannonY + ' Q ' + cx + ' ' + cy + ' ' + tx + ' ' + ty;
+      var color = s.kind === 'control' ? 'rgba(255,181,71,' : 'rgba(74,214,200,';
+      var age = Math.min(1, (shots.length - i) / 6);
+      var opacity = (0.6 - age * 0.55).toFixed(3);
+
+      // Trail
+      var trail = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      trail.setAttribute('d', path);
+      trail.setAttribute('fill', 'none');
+      trail.setAttribute('stroke', color + opacity + ')');
+      trail.setAttribute('stroke-width', '0.8');
+      svg.appendChild(trail);
+
+      // Landing dot
+      var dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      dot.setAttribute('cx', tx);
+      dot.setAttribute('cy', ty);
+      dot.setAttribute('r', '2.5');
+      dot.setAttribute('fill', color + '0.85)');
+      svg.appendChild(dot);
+    }});
+
+    // Active shot animation (last shot)
+    if (shots.length > 0) {{
+      var s = shots[shots.length - 1];
+      var tx = (s.kind === 'control' ? ctrlX : testX) + s.dx;
+      var ty = (s.kind === 'control' ? ctrlY : testY) + s.dy;
+      var cx = (cannonX + tx) / 2;
+      var cy = Math.min(cannonY, ty) - 240;
+      var path = 'M ' + cannonX + ' ' + cannonY + ' Q ' + cx + ' ' + cy + ' ' + tx + ' ' + ty;
+      var ballColor = s.kind === 'control' ? '#ffb547' : '#4ad6c8';
+
+      var ball = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      ball.setAttribute('r', '4');
+      ball.setAttribute('fill', ballColor);
+      var anim = document.createElementNS('http://www.w3.org/2000/svg', 'animateMotion');
+      anim.setAttribute('dur', '0.7s');
+      anim.setAttribute('fill', 'freeze');
+      anim.setAttribute('path', path);
+      anim.setAttribute('repeatCount', 'indefinite');
+      ball.appendChild(anim);
+      svg.appendChild(ball);
+    }}
+  ]]>
+  </script>
+</svg>
+
+<!-- HUD -->
+<div class="cannon-readout">
+  <div class="live"><span class="dot"></span> FIRING SEQUENCE · LIVE</div>
+  <div>SHOT&nbsp;<b>{str(shot_count).zfill(2)}</b>&nbsp;/&nbsp;<b>{str(total_shots).zfill(2)}</b></div>
+  <div>{current_msg}</div>
+</div>
+
+<!-- Progress bar -->
+<div class="pbar">
+  <span class="pct">{int(progress_pct*100):02d}%</span>
+  <div class="track"><div class="fill"></div></div>
+</div>
+</div>
+</body></html>"""
+
+
 if run_btn and not st.session_state.get("running"):
     st.session_state["running"] = True
+    cannon_area = st.empty()
+    shot_counter = [0]
 
     with st.sidebar:
         sidebar_progress = st.progress(0.0)
         sidebar_status = st.empty()
         sidebar_status.markdown("**Firing sequence initiated...**")
 
+    cannon_area.components.v1.html(
+        cannon_animation_html(0, n_trials * 2, "Initializing...", 0.0),
+        height=620, scrolling=False
+    )
+
     def on_progress(pct, msg):
         sidebar_progress.progress(pct)
         sidebar_status.markdown(f"**{msg}**")
+        shot_counter[0] += 1
+        cannon_area.components.v1.html(
+            cannon_animation_html(shot_counter[0], n_trials * 2, msg, pct),
+            height=620, scrolling=False
+        )
 
     try:
         experiment = run_experiment(prompt, knowledge_layer, n_trials, progress_callback=on_progress)
@@ -102,6 +317,7 @@ if run_btn and not st.session_state.get("running"):
         time.sleep(1)
         sidebar_progress.empty()
         sidebar_status.empty()
+        cannon_area.empty()
     except Exception as e:
         st.error(f"Experiment failed: {e}")
     finally:
