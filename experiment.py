@@ -84,7 +84,8 @@ def chat_openrouter(prompt: str, system: str = "") -> tuple[str, float]:
         "Content-Type": "application/json",
     })
     latency = (time.time() - t0) * 1000
-    resp.raise_for_status()
+    if resp.status_code != 200:
+        raise RuntimeError(f"OpenRouter {resp.status_code}: {resp.text[:500]}")
     return resp.json()["choices"][0]["message"]["content"], latency
 
 

@@ -147,7 +147,8 @@ def animate_cannon(cannon_placeholder, status_placeholder, frame_idx, msg):
     status_placeholder.markdown(f"**{msg}**")
 
 
-if run_btn:
+if run_btn and not st.session_state.get("running"):
+    st.session_state["running"] = True
     cannon_area = st.empty()
     status = st.empty()
     progress_bar = st.progress(0.0)
@@ -169,21 +170,25 @@ if run_btn:
     animate_cannon(cannon_area, status, 1, "Lighting the fuse...")
     time.sleep(0.5)
 
-    experiment = run_experiment(prompt, knowledge_layer, n_trials, progress_callback=on_progress)
-    save_experiment(experiment)
+    try:
+        experiment = run_experiment(prompt, knowledge_layer, n_trials, progress_callback=on_progress)
+        save_experiment(experiment)
 
-    animate_cannon(cannon_area, status, 5, "Analyzing where the balls landed...")
-    data = load_experiment()
-    results = full_analysis(data)
+        animate_cannon(cannon_area, status, 5, "Analyzing where the balls landed...")
+        data = load_experiment()
+        results = full_analysis(data)
 
-    with open("results/analysis.json", "w") as f:
-        json.dump(results, f, indent=2)
+        with open("results/analysis.json", "w") as f:
+            json.dump(results, f, indent=2)
 
-    progress_bar.progress(1.0)
-    status.markdown("**All shots fired! Results ready.**")
-    time.sleep(1)
-    cannon_area.empty()
-    st.rerun()
+        progress_bar.progress(1.0)
+        status.markdown("**All shots fired! Results ready.**")
+        time.sleep(1)
+        cannon_area.empty()
+    except Exception as e:
+        st.error(f"Experiment failed: {e}")
+    finally:
+        st.session_state["running"] = False
 
 if analysis_path.exists() and results_path.exists():
     data = load_experiment()
