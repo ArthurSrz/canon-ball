@@ -35,42 +35,20 @@ div.stMainBlockContainer { padding-top: 1rem !important; }
 section[data-testid="stSidebar"] { border-right: 1px solid rgba(180,200,230,0.12); }
 .stApp { background: #07090c; }
 
-/* Floating setup button */
-.setup-btn {
-    position: fixed; top: 14px; left: 14px; z-index: 999999;
-    background: rgba(12,16,20,0.85); border: 1px solid rgba(180,200,230,0.22);
-    color: #b8c2cf; padding: 7px 14px; border-radius: 4px; cursor: pointer;
-    font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 10.5px;
-    letter-spacing: 0.14em; text-transform: uppercase;
+/* Setup popover button */
+div[data-testid="stPopover"] { position: fixed !important; top: 12px; left: 12px; z-index: 999999; }
+div[data-testid="stPopover"] button {
+    background: rgba(12,16,20,0.85) !important; border: 1px solid rgba(180,200,230,0.22) !important;
+    color: #b8c2cf !important; font-family: "JetBrains Mono", monospace !important;
+    font-size: 10.5px !important; letter-spacing: 0.14em; text-transform: uppercase;
     backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
-    display: flex; align-items: center; gap: 8px;
-    transition: border-color 120ms, color 120ms;
+    padding: 7px 14px !important; border-radius: 4px !important;
 }
-.setup-btn:hover { border-color: #4ad6c8; color: #e8edf3; }
-.setup-btn svg { width: 14px; height: 14px; }
+div[data-testid="stPopover"] button:hover { border-color: #4ad6c8 !important; color: #e8edf3 !important; }
 </style>""", unsafe_allow_html=True)
 
-# Floating setup button that triggers sidebar via JS
-st.markdown("""
-<button class="setup-btn" onclick="
-    var btn = window.parent.document.querySelector('[data-testid=\\'collapsedControl\\'] button')
-        || window.parent.document.querySelector('button[kind=\\'headerNoPadding\\']')
-        || window.parent.document.querySelector('[data-testid=\\'baseButton-header\\']');
-    if (btn) btn.click();
-    else { var sb = window.parent.document.querySelector('[data-testid=\\'stSidebar\\']');
-           if (sb) sb.setAttribute('aria-expanded', 'true'); }
-">
-<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-  <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
-</svg>
-SETUP
-</button>
-""", unsafe_allow_html=True)
-
-# --- Sidebar: Experiment Configuration ---
-with st.sidebar:
-    st.markdown("### Experiment Setup")
-
+# --- Experiment Configuration via popover ---
+with st.popover("☰ SETUP", use_container_width=False):
     prompt = st.text_area(
         "Prompt · the throw",
         value='Tu vas m\'aider à préparer la course d\'alpinisme "les arêtes du Gerbier" situées dans le Vercors',
@@ -97,10 +75,6 @@ and supervised by **high mountain guides** (Q819677).""",
 
     n_trials = st.slider("Trials per group", 3, 20, 12)
     run_btn = st.button("Fire experiment", type="primary", use_container_width=True)
-
-    # Progress lives in sidebar, right below the button
-    sidebar_progress = st.empty()
-    sidebar_status = st.empty()
 
 # --- Run experiment ---
 results_path = Path("results/experiment.json")
@@ -312,12 +286,8 @@ html, body {{ margin:0; padding:0; background:#07090c; overflow:hidden; }}
 if run_btn and not st.session_state.get("running"):
     st.session_state["running"] = True
     cannon_area = st.empty()
+    progress_area = st.empty()
     shot_counter = [0]
-
-    with st.sidebar:
-        sidebar_progress = st.progress(0.0)
-        sidebar_status = st.empty()
-        sidebar_status.markdown("**Firing sequence initiated...**")
 
     with cannon_area.container():
         components.html(
@@ -326,8 +296,7 @@ if run_btn and not st.session_state.get("running"):
         )
 
     def on_progress(pct, msg):
-        sidebar_progress.progress(pct)
-        sidebar_status.markdown(f"**{msg}**")
+        progress_area.progress(pct, text=msg)
         shot_counter[0] += 1
         with cannon_area.container():
             components.html(
@@ -339,18 +308,15 @@ if run_btn and not st.session_state.get("running"):
         experiment = run_experiment(prompt, knowledge_layer, n_trials, progress_callback=on_progress)
         save_experiment(experiment)
 
-        sidebar_status.markdown("**Analyzing semantic space...**")
+        progress_area.progress(1.0, text="Analyzing semantic space...")
         data = load_experiment()
         results = full_analysis(data)
 
         with open("results/analysis.json", "w") as f:
             json.dump(results, f, indent=2)
 
-        sidebar_progress.progress(1.0)
-        sidebar_status.markdown("**Done! Results ready.**")
         time.sleep(1)
-        sidebar_progress.empty()
-        sidebar_status.empty()
+        progress_area.empty()
         cannon_area.empty()
     except Exception as e:
         st.error(f"Experiment failed: {e}")
