@@ -20,9 +20,10 @@ st.set_page_config(page_title="Canon Ball", page_icon="🎯", layout="wide",
 
 # Hide default Streamlit chrome for immersive UI
 st.markdown("""<style>
-#MainMenu, footer, [data-testid="stToolbar"] { display: none !important; }
-header [data-testid="stDecoration"] { display: none !important; }
-button[data-testid="stSidebarCollapsedControl"] { display: flex !important; }
+#MainMenu, footer, [data-testid="stToolbar"], [data-testid="stDecoration"] { display: none !important; }
+header[data-testid="stHeader"] { background: transparent !important; }
+[data-testid="collapsedControl"] { display: flex !important; visibility: visible !important; }
+button[kind="headerNoPadding"] { display: flex !important; visibility: visible !important; }
 [data-testid="stSidebar"] { background: #0c1014; }
 [data-testid="stSidebar"] .stTextArea textarea,
 [data-testid="stSidebar"] .stTextArea label,
