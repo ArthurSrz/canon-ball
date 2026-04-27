@@ -36,9 +36,11 @@ def _get_backend():
 def _get_openrouter_key():
     try:
         import streamlit as st
-        return st.secrets.get("OPENROUTER_API_KEY", os.environ.get("OPENROUTER_API_KEY", ""))
+        if hasattr(st, "secrets") and "OPENROUTER_API_KEY" in st.secrets:
+            return st.secrets["OPENROUTER_API_KEY"]
     except Exception:
-        return os.environ.get("OPENROUTER_API_KEY", "")
+        pass
+    return os.environ.get("OPENROUTER_API_KEY", "")
 
 
 def _get_fastembed():
