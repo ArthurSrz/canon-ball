@@ -11,7 +11,7 @@ import json
 import time
 from pathlib import Path
 
-from canon_experiment import run_experiment, save_experiment, load_experiment
+from canon_experiment import run_experiment, save_experiment, load_experiment, INJECTION_MODES
 from canon_analysis import full_analysis
 
 
@@ -44,6 +44,12 @@ practiced in high mountains. It is a sub-discipline of alpinism.
 Alpine climbing routes are led by **alpinists** (Q9149093)
 and supervised by **high mountain guides** (Q819677).""",
         height=200
+    )
+
+    injection_mode = st.radio(
+        "Injection mode",
+        options=list(INJECTION_MODES.keys()),
+        format_func=lambda k: INJECTION_MODES[k],
     )
 
     n_trials = st.slider("Trials per group", 3, 20, 12)
@@ -278,7 +284,9 @@ if run_btn and not st.session_state.get("running"):
             )
 
     try:
-        experiment = run_experiment(prompt, knowledge_layer, n_trials, progress_callback=on_progress)
+        experiment = run_experiment(prompt, knowledge_layer, n_trials,
+                                   injection_mode=injection_mode,
+                                   progress_callback=on_progress)
         save_experiment(experiment)
 
         progress_area.progress(1.0, text="Analyzing semantic space...")
@@ -312,6 +320,7 @@ if analysis_path.exists() and results_path.exists():
         "prompt": data["prompt"],
         "knowledge_layer": data["knowledge_layer"],
         "n_trials": data["n_trials"],
+        "injection_mode": data.get("injection_mode", "system_user"),
         "timestamp": data.get("timestamp", ""),
     })
 
@@ -457,6 +466,7 @@ body {{ background: radial-gradient(1400px 700px at 60% 10%, rgba(74,214,200,0.0
 const {{ useState, useEffect, useMemo, useRef }} = React;
 
 const DATA = {js_data};
+const MODE_LABELS = {{"system_user":"System → User","interleave":"Interleaved","template":"Template injection","cot_priming":"CoT priming"}};
 
 function SemanticPlot({{ projection, layers, onPointHover }}) {{
   const ref = useRef(null);
@@ -694,7 +704,7 @@ function App() {{
           </div>
           <span className="crumb">Run <b>EXP·{{DATA.timestamp.replace(/[-:T]/g, '·').slice(0,16)}}</b></span>
           <span className="crumb" style={{{{ color: "var(--ink-3)" }}}}>·</span>
-          <span className="crumb">qwen2.5 · bge-m3</span>
+          <span className="crumb">qwen2.5 · bge-m3 · {{MODE_LABELS[DATA.injection_mode]}}</span>
         </div>
         <div className="topbar-right">
           <span className="status-pill"><span className="dot"></span>Run complete · {{projection.control_centroids.length}}+{{projection.test_centroids.length}} trials</span>
@@ -759,6 +769,7 @@ function App() {{
           <div className="foot-experiment">
             <div className="row"><span className="k">Prompt</span><span style={{{{ color: "var(--ink-1)" }}}}>{{DATA.prompt}}</span></div>
             <div className="row"><span className="k">Layer</span><span style={{{{ color: "var(--ink-1)" }}}}>Wikidata · Alpine Climbing · {{DATA.knowledge_layer.length}}c</span></div>
+            <div className="row"><span className="k">Mode</span><span style={{{{ color: "var(--test)" }}}}>{{MODE_LABELS[DATA.injection_mode]}}</span></div>
             <div className="row"><span className="k">Trials</span><span style={{{{ color: "var(--ink-1)" }}}}>{{projection.control_centroids.length}} control · {{projection.test_centroids.length}} test</span></div>
           </div>
           <div className="foot-stat">

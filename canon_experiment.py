@@ -22,6 +22,14 @@ OLLAMA_BASE = "http://localhost:11434"
 _fastembed_model = None
 
 
+INJECTION_MODES = {
+    "system_user": "System → User",
+    "interleave": "Interleaved",
+    "template": "Template injection",
+    "cot_priming": "CoT priming",
+}
+
+
 def _get_backend():
     """Detect if ollama is available locally, otherwise use cloud."""
     try:
@@ -51,12 +59,7 @@ def _get_fastembed():
     return _fastembed_model
 
 
-def chat_ollama(prompt: str, system: str = "") -> tuple[str, float]:
-    messages = []
-    if system:
-        messages.append({"role": "system", "content": system})
-    messages.append({"role": "user", "content": prompt})
-
+def chat_ollama(messages: list[dict]) -> tuple[str, float]:
     t0 = time.time()
     resp = requests.post(f"{OLLAMA_BASE}/api/chat", json={
         "model": "qwen2.5:3b",
@@ -69,12 +72,7 @@ def chat_ollama(prompt: str, system: str = "") -> tuple[str, float]:
     return resp.json()["message"]["content"], latency
 
 
-def chat_openrouter(prompt: str, system: str = "") -> tuple[str, float]:
-    messages = []
-    if system:
-        messages.append({"role": "system", "content": system})
-    messages.append({"role": "user", "content": prompt})
-
+def chat_openrouter(messages: list[dict]) -> tuple[str, float]:
     key = _get_openrouter_key()
     t0 = time.time()
     resp = requests.post("https://openrouter.ai/api/v1/chat/completions", json={
@@ -106,10 +104,10 @@ def embed_fastembed(texts: list[str]) -> list[list[float]]:
     return [e.tolist() for e in embeddings]
 
 
-def chat(prompt: str, system: str = "") -> tuple[str, float]:
+def chat(messages: list[dict]) -> tuple[str, float]:
     if _get_backend() == "ollama":
-        return chat_ollama(prompt, system)
-    return chat_openrouter(prompt, system)
+        return chat_ollama(messages)
+    return chat_openrouter(messages)
 
 
 def embed_texts(texts: list[str]) -> list[list[float]]:
@@ -135,6 +133,7 @@ class ExperimentRun:
     prompt: str
     knowledge_layer: str
     n_trials: int
+    injection_mode: str = "system_user"
     control_trials: list[Trial] = field(default_factory=list)
     test_trials: list[Trial] = field(default_factory=list)
     timestamp: str = ""
@@ -145,9 +144,45 @@ def tokenize_output(text: str) -> list[str]:
     return [c for c in chunks if len(c) > 5]
 
 
-def run_single_trial(trial_type: str, index: int, prompt: str, knowledge_layer: str) -> Trial:
-    system = knowledge_layer if trial_type == "test" else ""
-    raw_output, latency = chat(prompt, system=system)
+def assemble_messages(prompt: str, knowledge_layer: str, mode: str) -> list[dict]:
+    if mode == "system_user":
+        msgs = []
+        if knowledge_layer:
+            msgs.append({"role": "system", "content": knowledge_layer})
+        msgs.append({"role": "user", "content": prompt})
+        return msgs
+
+    if mode == "interleave":
+        k_parts = [s.strip() for s in re.split(r'\n{2,}', knowledge_layer.strip()) if s.strip()]
+        p_parts = re.split(r'(?<=[.!?])\s+', prompt.strip())
+        merged = []
+        for i in range(max(len(p_parts), len(k_parts))):
+            if i < len(p_parts):
+                merged.append(p_parts[i])
+            if i < len(k_parts):
+                merged.append(k_parts[i])
+        return [{"role": "user", "content": "\n\n".join(merged)}]
+
+    if mode == "template":
+        return [{"role": "user", "content": f"{prompt}\n\n---\nContext:\n{knowledge_layer}"}]
+
+    if mode == "cot_priming":
+        return [
+            {"role": "user", "content": "What do you know about this topic?"},
+            {"role": "assistant", "content": knowledge_layer},
+            {"role": "user", "content": prompt},
+        ]
+
+    return [{"role": "user", "content": prompt}]
+
+
+def run_single_trial(trial_type: str, index: int, prompt: str, knowledge_layer: str,
+                     injection_mode: str = "system_user") -> Trial:
+    if trial_type == "test":
+        messages = assemble_messages(prompt, knowledge_layer, injection_mode)
+    else:
+        messages = [{"role": "user", "content": prompt}]
+    raw_output, latency = chat(messages)
     chunks = tokenize_output(raw_output)
 
     if not chunks:
@@ -168,23 +203,25 @@ def run_single_trial(trial_type: str, index: int, prompt: str, knowledge_layer: 
 
 
 def run_experiment(prompt: str, knowledge_layer: str, n_trials: int = 12,
+                   injection_mode: str = "system_user",
                    progress_callback=None) -> ExperimentRun:
     run = ExperimentRun(
         prompt=prompt,
         knowledge_layer=knowledge_layer,
         n_trials=n_trials,
+        injection_mode=injection_mode,
         timestamp=time.strftime("%Y-%m-%dT%H:%M:%S")
     )
 
     total = n_trials * 2
     for i in range(n_trials):
-        trial = run_single_trial("control", i, prompt, knowledge_layer)
+        trial = run_single_trial("control", i, prompt, knowledge_layer, injection_mode)
         run.control_trials.append(trial)
         if progress_callback:
             progress_callback((i + 1) / total, f"Control trial {i+1}/{n_trials}")
 
     for i in range(n_trials):
-        trial = run_single_trial("test", i, prompt, knowledge_layer)
+        trial = run_single_trial("test", i, prompt, knowledge_layer, injection_mode)
         run.test_trials.append(trial)
         if progress_callback:
             progress_callback((n_trials + i + 1) / total, f"Test trial {i+1}/{n_trials}")
@@ -199,6 +236,7 @@ def save_experiment(run: ExperimentRun, path: str = "results/experiment.json"):
         "prompt": run.prompt,
         "knowledge_layer": run.knowledge_layer,
         "n_trials": run.n_trials,
+        "injection_mode": run.injection_mode,
         "timestamp": run.timestamp,
         "control_trials": [asdict(t) for t in run.control_trials],
         "test_trials": [asdict(t) for t in run.test_trials],
