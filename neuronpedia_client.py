@@ -538,3 +538,47 @@ def build_mise_en_abime_scene(prompt: str, knowledge: str | None, nla: NLAResult
             "prompt_word_count": sum(1 for w in words if w["role"] == "prompt"),
         },
     }
+
+
+def build_lens_scene(prompt: str, knowledge: str | None, nla: NLAResult | None,
+                     attrib: dict | None, answer: str | None = None, n_rays: int = 5) -> dict:
+    """Reduce the mirror to the focal-lines optical-bench scene (LensView.jsx).
+
+    Picks the n brightest NLA features (by l2_norm) as rays; each ray carries an
+    attribution label (the feature's compact description) and a NLA "why" (the
+    full first-sentence verbalization that explains why this feature fires).
+    """
+    feats = sorted((nla.features if (nla and nla.ok) else []),
+                   key=lambda f: f.l2_norm, reverse=True)[:n_rays]
+    attrib_labels: list[str] = []
+    if attrib and attrib.get("ok"):
+        attrib_labels = [n.get("label", "") for n in
+                         sorted([n for n in attrib.get("nodes", []) if n.get("type") == "feature"],
+                                key=lambda n: n.get("influence", 0), reverse=True)]
+    rays: list[dict] = []
+    # 5 vertically-distributed ray slots that match the LensView geometry (700-unit canvas).
+    SLOT_SY = [110, 235, 360, 470, 585]
+    SLOT_LY = [175, 252, 350, 448, 525]
+    SLOT_DY = [90, 230, 360, 490, 615]
+    for i in range(min(n_rays, len(SLOT_SY))):
+        f = feats[i] if i < len(feats) else None
+        attr = (attrib_labels[i] if i < len(attrib_labels) and attrib_labels[i]
+                else (f.short_label() if f else f"feature #{i+1}"))
+        why = (f.short_label() if f
+               else ("the lens recruited a feature the bare prompt did not"))
+        rays.append({"sy": SLOT_SY[i], "ly": SLOT_LY[i], "dy": SLOT_DY[i],
+                     "attr": (attr or "").strip()[:64],
+                     "why": (why or "").strip()[:90]})
+    return {
+        "rays": rays,
+        "source_label": "the throw · scattered prompt",
+        "lens_label": "knowledge layer · the lens",
+        "answer": (answer or "").strip() or "Resolved by the knowledge layer.",
+        "meta": {
+            "nla_model": nla.model if nla is not None else "",
+            "attrib_model": GRAPH_MODEL,
+            "nla_ok": bool(nla and nla.ok),
+            "attrib_ok": bool(attrib and attrib.get("ok")),
+            "n_rays": len(rays),
+        },
+    }

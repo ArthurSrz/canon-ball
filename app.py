@@ -76,6 +76,14 @@ and supervised by **high mountain guides** (Q819677).""",
                                help="Generate the real causal attribution graph (gemma-2-2b) showing "
                                     "how the answer is formed — feature nodes + attribution edges to the "
                                     "output logits. Uses the prompt only (64-token cap), embedded from Neuronpedia.")
+    mirror_style = st.radio(
+        "Mirror style",
+        options=["Lens (focal lines)", "Mise-en-abîme (raw)"],
+        index=0, horizontal=False, key="mirror_style",
+        help="Lens: the optical-bench view — converge → focal point → diverge "
+             "(attribution and NLA as two halves of one ray path). "
+             "Mise-en-abîme: the full token spine with every NLA root + the pruned attribution tree.",
+    )
     mirror_btn = st.button("Reveal internal features", use_container_width=True)
 
 # --- Run experiment ---
@@ -515,6 +523,287 @@ setTimeout(()=>{{
 </body></html>"""
 
 
+def lens_html(scene: dict) -> str:
+    """Vanilla-JS port of LensView.jsx: the optical bench. Scattered prompt → lens
+    → converging attribution rays → focal point (the answer) → diverging NLA rays.
+    Self-contained — no external scripts beyond Google Fonts."""
+    payload = json.dumps(scene)
+    return f"""<!doctype html>
+<html lang="en"><head><meta charset="utf-8"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Fraunces:ital,wght@1,400;1,500&display=swap" rel="stylesheet">
+<style>
+:root {{ --bg-0:#07090c; --bg-1:#0c1014; --rule:rgba(180,200,230,0.12);
+  --ink-0:#e8edf3; --ink-1:#b8c2cf; --ink-2:#8590a0; --ink-3:#5a6473;
+  --ctrl:#ffb547; --test:#4ad6c8; --ok:#67e8a4;
+  --mono:"JetBrains Mono",monospace; --sans:"Inter Tight",sans-serif; --disp:"Fraunces",serif; }}
+* {{ box-sizing:border-box; }}
+html,body {{ margin:0; background:var(--bg-0); color:var(--ink-0); font-family:var(--sans);
+  -webkit-font-smoothing:antialiased; }}
+.wrap {{ padding:14px 22px; display:flex; flex-direction:column; gap:12px; }}
+.head {{ display:flex; align-items:flex-start; justify-content:space-between; gap:24px; flex-wrap:wrap; }}
+.kicker {{ font-family:var(--mono); font-size:10.5px; letter-spacing:0.18em;
+  text-transform:uppercase; color:var(--ink-2); }}
+.title {{ margin:6px 0 0; font-family:var(--disp); font-style:italic; font-weight:400;
+  font-size:clamp(20px,2.4vw,30px); line-height:1.12; letter-spacing:-0.02em; max-width:680px; }}
+.title .accent {{ font-family:var(--sans); font-style:normal; font-weight:600; }}
+.legend {{ display:flex; flex-direction:column; gap:6px; align-items:flex-end; padding-top:4px; }}
+.lrow {{ display:flex; align-items:center; gap:8px; font-family:var(--mono); font-size:10.5px;
+  letter-spacing:0.10em; text-transform:uppercase; color:var(--ink-1); white-space:nowrap; }}
+.sw {{ width:8px; height:8px; border-radius:50%; }}
+.stage {{ position:relative; min-height:440px;
+  background:radial-gradient(circle at 62% 50%, rgba(74,214,200,0.04), transparent 62%), var(--bg-1);
+  border:1px solid var(--rule); border-radius:4px; overflow:hidden; }}
+.stage svg {{ position:absolute; inset:0; width:100%; height:100%; }}
+.cap {{ font-family:var(--mono); font-size:10.5px; letter-spacing:0.14em; text-transform:uppercase; fill:var(--ink-2); }}
+.sub {{ font-family:var(--mono); font-size:10px; letter-spacing:0.12em; text-transform:uppercase; fill:var(--ink-3); }}
+.attr {{ font-family:var(--mono); font-size:10.5px; fill:var(--ink-1); letter-spacing:0.01em; }}
+.why {{ font-family:var(--disp); font-style:italic; font-size:13px; fill:var(--ink-1); }}
+.fock {{ font-family:var(--mono); font-size:10.5px; letter-spacing:0.16em; text-transform:uppercase; }}
+.answer {{ position:absolute; left:50%; bottom:18px; transform:translateX(-18%); max-width:340px;
+  background:rgba(7,9,12,0.6); backdrop-filter:blur(4px); border:1px solid var(--rule);
+  border-left:2px solid var(--ok); border-radius:3px; padding:10px 14px;
+  transition:opacity .6s ease; opacity:0; }}
+.answer p {{ margin:5px 0 0; font-family:var(--disp); font-style:italic; font-size:15px;
+  line-height:1.4; color:var(--ink-0); text-wrap:pretty; }}
+.foot {{ display:flex; align-items:center; justify-content:space-between; gap:20px; flex-wrap:wrap;
+  padding:12px 16px; background:var(--bg-1); border:1px solid var(--rule); border-radius:4px; }}
+.status {{ display:flex; align-items:center; gap:10px; font-family:var(--mono); font-size:11.5px;
+  color:var(--ink-2); line-height:1.4; }}
+.status b {{ color:var(--ink-0); font-weight:500; }}
+.dot {{ width:8px; height:8px; border-radius:50%; box-shadow:0 0 8px currentColor;
+  animation:pulse 1.4s ease-in-out infinite; background:var(--ink-3); color:var(--ink-3); }}
+.status.done .dot {{ animation:none; background:var(--ok); color:var(--ok); }}
+@keyframes pulse {{ 0%,100%{{opacity:1;}} 50%{{opacity:0.35;}} }}
+.phases {{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }}
+.chip {{ display:flex; align-items:center; gap:6px; padding:4px 9px; border-radius:3px;
+  border:1px solid var(--rule); opacity:0.4; transition:all .3s; }}
+.chip.on {{ opacity:1; }}
+.chip.cur {{ background:#161c24; }}
+.chip .k {{ font-family:var(--mono); font-size:9px; color:var(--ink-3); letter-spacing:0.08em; }}
+.chip.on .k {{ color:var(--test); }}
+.chip .t {{ font-family:var(--mono); font-size:10px; letter-spacing:0.10em;
+  text-transform:uppercase; color:var(--ink-1); }}
+.replay {{ font-family:var(--mono); font-size:10px; letter-spacing:0.12em; text-transform:uppercase;
+  padding:3px 10px; border:1px solid var(--rule); background:transparent; color:var(--ink-2);
+  border-radius:3px; cursor:pointer; margin-left:6px; }}
+.replay:hover {{ color:var(--ink-0); border-color:rgba(180,200,230,0.32); }}
+.reveal {{ opacity:0; }}
+.reveal.in {{ opacity:1; transition:opacity .5s ease; }}
+</style></head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <div>
+      <div class="kicker">Focal lines · the lens</div>
+      <div class="title">Where the knowledge layer <span class="accent">bends the light</span></div>
+    </div>
+    <div class="legend">
+      <span class="lrow"><span class="sw" style="background:#4ad6c8"></span>Converge · attribution</span>
+      <span class="lrow"><span class="sw" style="background:#67e8a4"></span>Focal point · answer</span>
+      <span class="lrow"><span class="sw" style="background:#ffb547"></span>Diverge · NLA mirror</span>
+    </div>
+  </div>
+  <div class="stage" id="stage"></div>
+  <div class="foot">
+    <div class="status" id="status"><span class="dot" id="dot"></span><span id="stxt">Standing by…</span></div>
+    <div class="phases" id="phases"></div>
+  </div>
+</div>
+<script>
+const S = {payload};
+const NS = "http://www.w3.org/2000/svg";
+const VB_W=1200, VB_H=700, SRC_X=96, LENS_X=350, FOC_X=822, FOC_Y=350, END_X=1140;
+const TEST="#4ad6c8", CTRL="#ffb547", OK="#67e8a4";
+const PHASES = [
+  {{k:"01", t:"The throw", d:"the prompt enters, semantically scattered"}},
+  {{k:"02", t:"Converge", d:"the lens focuses the rays — each marks a knowledge object"}},
+  {{k:"03", t:"Focal point", d:"the rays cross. the answer."}},
+  {{k:"04", t:"Diverge", d:"the semantic mirror voices why each ray landed"}},
+];
+
+function el(tag, attrs){{ const e=document.createElementNS(NS, tag);
+  for(const k in attrs) e.setAttribute(k, attrs[k]); return e; }}
+function len(x1,y1,x2,y2){{ return Math.hypot(x2-x1, y2-y1); }}
+
+function buildStage(){{
+  const stage = document.getElementById("stage");
+  stage.innerHTML = "";
+  const svg = el("svg", {{viewBox:`0 0 ${{VB_W}} ${{VB_H}}`, preserveAspectRatio:"xMidYMid meet"}});
+  const defs = el("defs", {{}});
+  defs.innerHTML = `
+    <radialGradient id="focGlow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%" stop-color="${{OK}}" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="${{OK}}" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="lensFill" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="${{TEST}}" stop-opacity="0.04"/>
+      <stop offset="50%" stop-color="${{TEST}}" stop-opacity="0.16"/>
+      <stop offset="100%" stop-color="${{TEST}}" stop-opacity="0.04"/>
+    </linearGradient>`;
+  svg.appendChild(defs);
+
+  // Optical axis (always visible)
+  svg.appendChild(el("line", {{x1:SRC_X, y1:FOC_Y, x2:END_X, y2:FOC_Y,
+    stroke:"rgba(180,200,230,0.16)", "stroke-width":"1", "stroke-dasharray":"2 6"}}));
+
+  // Zone captions
+  const cap1 = el("text", {{x:SRC_X-8, y:36, class:"cap reveal", "data-phase":"1"}}); cap1.textContent="① SCATTERED PROMPT"; svg.appendChild(cap1);
+  const cap2 = el("text", {{x:(LENS_X+FOC_X)/2, y:36, "text-anchor":"middle", class:"cap reveal", "data-phase":"2", fill:TEST}});
+  cap2.textContent="② CONVERGE · ATTRIBUTION GRAPH"; svg.appendChild(cap2);
+  const cap4 = el("text", {{x:(FOC_X+END_X)/2+20, y:36, "text-anchor":"middle", class:"cap reveal", "data-phase":"4", fill:CTRL}});
+  cap4.textContent="④ DIVERGE · NLA SEMANTIC MIRROR"; svg.appendChild(cap4);
+
+  const rays = (S.rays||[]).map((r,i)=>({{...r, i,
+    enterL: len(SRC_X, r.sy, LENS_X, r.ly),
+    convL: len(LENS_X, r.ly, FOC_X, FOC_Y),
+    divL: len(FOC_X, FOC_Y, END_X, r.dy),
+    ax: (LENS_X+FOC_X)/2, ay:(r.ly+FOC_Y)/2,
+    nx: FOC_X + 0.5*(END_X-FOC_X), ny: FOC_Y + 0.5*(r.dy-FOC_Y),
+    fullPath: `M ${{SRC_X}} ${{r.sy}} L ${{LENS_X}} ${{r.ly}} L ${{FOC_X}} ${{FOC_Y}} L ${{END_X}} ${{r.dy}}`
+  }}));
+
+  function dashLine(x1,y1,x2,y2,stroke,sw,L,phase,delay){{
+    const ln = el("line",{{x1,y1,x2,y2, stroke, "stroke-width":sw,
+      "stroke-dasharray":L, "stroke-dashoffset":L}});
+    ln.dataset.phase = phase; ln.dataset.delay = delay; ln.dataset.len = L;
+    svg.appendChild(ln); return ln;
+  }}
+
+  // Enter rays (scattered)
+  rays.forEach(r => dashLine(SRC_X, r.sy, LENS_X, r.ly, "rgba(180,200,230,0.45)", 1, r.enterL, 1, r.i*60));
+  // Source dots
+  rays.forEach(r => {{
+    const g = el("g", {{class:"reveal", "data-phase":"1", "data-delay":r.i*60}});
+    g.appendChild(el("circle", {{cx:SRC_X, cy:r.sy, r:3.5, fill:"rgba(184,194,207,0.9)"}}));
+    svg.appendChild(g);
+  }});
+  const slbl = el("text", {{x:SRC_X-4, y:VB_H-24, class:"sub reveal", "data-phase":"1", "data-delay":100}});
+  slbl.textContent = S.source_label||""; svg.appendChild(slbl);
+
+  // Lens
+  const lensG = el("g", {{class:"reveal", "data-phase":"1", "data-delay":250}});
+  lensG.appendChild(el("path", {{d:`M ${{LENS_X}} 150 C ${{LENS_X+30}} 230, ${{LENS_X+30}} 470, ${{LENS_X}} 550 C ${{LENS_X-30}} 470, ${{LENS_X-30}} 230, ${{LENS_X}} 150 Z`,
+    fill:"url(#lensFill)", stroke:TEST, "stroke-opacity":"0.55", "stroke-width":"1.2"}}));
+  lensG.appendChild(el("line", {{x1:LENS_X, y1:150, x2:LENS_X, y2:550, stroke:TEST,
+    "stroke-opacity":"0.3", "stroke-width":"0.6", "stroke-dasharray":"2 4"}}));
+  const llbl = el("text", {{x:LENS_X, y:596, "text-anchor":"middle", class:"sub", fill:TEST}});
+  llbl.textContent = S.lens_label||""; lensG.appendChild(llbl);
+  svg.appendChild(lensG);
+
+  // Converge rays (attribution)
+  rays.forEach(r => dashLine(LENS_X, r.ly, FOC_X, FOC_Y, TEST, 1.3, r.convL, 2, r.i*120));
+  // Attribution nodes
+  rays.forEach(r => {{
+    const g = el("g", {{class:"reveal", "data-phase":"2", "data-delay":r.i*120 + 400}});
+    g.appendChild(el("circle", {{cx:r.ax, cy:r.ay, r:5, fill:"#0c1014", stroke:TEST, "stroke-width":"1.4"}}));
+    g.appendChild(el("circle", {{cx:r.ax, cy:r.ay, r:1.8, fill:TEST}}));
+    const t = el("text", {{x:r.ax, y:r.ay-12, "text-anchor":"middle", class:"attr"}});
+    t.textContent = r.attr||""; g.appendChild(t);
+    svg.appendChild(g);
+  }});
+
+  // Focal point
+  const focG = el("g", {{class:"reveal", "data-phase":"3", "data-delay":0}});
+  const glow = el("circle", {{cx:FOC_X, cy:FOC_Y, r:64, fill:"url(#focGlow)"}});
+  const anim = el("animate", {{attributeName:"r", values:"48;66;48", dur:"3.2s", repeatCount:"indefinite"}});
+  glow.appendChild(anim); focG.appendChild(glow);
+  focG.appendChild(el("circle", {{cx:FOC_X, cy:FOC_Y, r:22, fill:"none", stroke:OK, "stroke-opacity":"0.4", "stroke-width":"0.8", "stroke-dasharray":"3 4"}}));
+  focG.appendChild(el("circle", {{cx:FOC_X, cy:FOC_Y, r:11, fill:"none", stroke:OK, "stroke-opacity":"0.6", "stroke-width":"0.8"}}));
+  focG.appendChild(el("circle", {{cx:FOC_X, cy:FOC_Y, r:4, fill:OK}}));
+  const fk = el("text", {{x:FOC_X, y:FOC_Y-78, "text-anchor":"middle", class:"fock", fill:OK}});
+  fk.textContent = "③ FOCAL POINT · THE ANSWER"; focG.appendChild(fk);
+  svg.appendChild(focG);
+
+  // Diverge rays (NLA)
+  rays.forEach(r => dashLine(FOC_X, FOC_Y, END_X, r.dy, CTRL, 1.2, r.divL, 4, r.i*100));
+  // NLA labels
+  rays.forEach(r => {{
+    const g = el("g", {{class:"reveal", "data-phase":"4", "data-delay":r.i*100 + 350}});
+    g.appendChild(el("circle", {{cx:END_X, cy:r.dy, r:3, fill:CTRL}}));
+    const t = el("text", {{x:END_X-10, y:r.dy+3, "text-anchor":"end", class:"why"}});
+    t.textContent = r.why||""; g.appendChild(t);
+    svg.appendChild(g);
+  }});
+
+  stage.appendChild(svg);
+
+  // Answer card
+  const ans = document.createElement("div");
+  ans.className = "answer"; ans.id = "answer";
+  ans.innerHTML = `<span class="kicker" style="color:${{OK}}">resolved answer</span><p>${{(S.answer||"").replace(/</g,"&lt;")}}</p>`;
+  stage.appendChild(ans);
+
+  return {{svg, rays}};
+}}
+
+function buildPhases(){{
+  const wrap = document.getElementById("phases");
+  wrap.innerHTML = "";
+  PHASES.forEach((p, i) => {{
+    const c = document.createElement("div"); c.className = "chip"; c.id = `chip-${{i+1}}`;
+    c.innerHTML = `<span class="k">${{p.k}}</span><span class="t">${{p.t}}</span>`;
+    wrap.appendChild(c);
+  }});
+  const btn = document.createElement("button"); btn.className = "replay"; btn.textContent = "↻ Replay";
+  btn.onclick = run; wrap.appendChild(btn);
+}}
+
+function setStatus(html, done){{
+  document.getElementById("stxt").innerHTML = html;
+  const s = document.getElementById("status");
+  if(done) s.classList.add("done"); else s.classList.remove("done");
+  const dot = document.getElementById("dot");
+  dot.style.color = done ? OK : TEST;
+}}
+
+function applyPhase(phase){{
+  // Reveal all elements with data-phase <= current
+  document.querySelectorAll("[data-phase]").forEach(el => {{
+    const ep = parseInt(el.dataset.phase || "0");
+    const delay = parseInt(el.dataset.delay || "0");
+    if(ep <= phase){{
+      setTimeout(() => {{
+        el.classList.add("in");
+        if(el.tagName === "line" && el.dataset.len){{
+          const L = el.dataset.len;
+          el.style.transition = `stroke-dashoffset 0.75s cubic-bezier(.55,0,.25,1)`;
+          el.style.strokeDashoffset = "0";
+          el.style.opacity = "1";
+        }}
+      }}, delay);
+    }}
+  }});
+  // Phase chips
+  for(let i=1; i<=4; i++){{
+    const c = document.getElementById(`chip-${{i}}`);
+    if(!c) continue;
+    c.classList.toggle("on", phase >= i);
+    c.classList.toggle("cur", phase === i);
+  }}
+  // Answer card visibility
+  document.getElementById("answer").style.opacity = phase >= 3 ? 1 : 0;
+  // Status
+  if(phase === 0) setStatus("Standing by…", false);
+  else if(phase >= 5) setStatus("<b>The focal line, resolved</b> · converge → cross → diverge. Attribution and NLA are two halves of one ray path.", true);
+  else {{ const p = PHASES[phase-1]; setStatus(`<b>${{p.k}} · ${{p.t}}</b> — ${{p.d}}`, false); }}
+}}
+
+let timers = [];
+function run(){{
+  timers.forEach(clearTimeout); timers = [];
+  buildStage(); buildPhases(); applyPhase(0);
+  const at = (ms, p) => timers.push(setTimeout(() => applyPhase(p), ms));
+  at(350, 1); at(2300, 2); at(5400, 3); at(7000, 4); at(10600, 5);
+}}
+run();
+</script></body></html>"""
+
+
+def _lens_height() -> int:
+    """Fixed-aspect stage: viewBox is 1200×700; account for head + foot chrome."""
+    return 760
+
+
 def compute_scene(prompt, knowledge, nla_result, do_trace):
     """Generate the attribution graph (best-effort), prune it, and assemble the unified scene.
     Returns (scene_dict, np_url, attrib_status)."""
@@ -547,8 +836,29 @@ def render_scene(scene, np_url, attrib_status):
     if not scene["meta"].get("nla_ok") and not npc._np_key():
         st.info("Tip: set `NEURONPEDIA_API_KEY` to raise rate limits "
                 "(the NLA API also works key-less, but is rate-limited per IP).")
-    components.html(mise_en_abime_html(scene, np_url=np_url),
-                    height=_scene_height(scene), scrolling=True)
+    style = st.session_state.get("mirror_style", "Lens (focal lines)")
+    if style.startswith("Lens"):
+        # Try to pull a short test-condition answer to anchor the focal point.
+        ans = ""
+        try:
+            results = st.session_state.get("experiment_results") or {}
+            tt = (results.get("test_trials") or [])
+            if tt:
+                ans = (tt[0].get("raw_output") or "").strip().split("\n")[0][:200]
+        except Exception:
+            pass
+        _nla = st.session_state.get("nla_result")
+        _pr = (_nla.prompt if _nla is not None else "") or ""
+        lens_scene = npc.build_lens_scene(
+            _pr, None, _nla,
+            {"ok": scene["meta"].get("attrib_ok", False),
+             "nodes": scene.get("tree", {}).get("nodes", [])},
+            answer=ans,
+        )
+        components.html(lens_html(lens_scene), height=_lens_height(), scrolling=False)
+    else:
+        components.html(mise_en_abime_html(scene, np_url=np_url),
+                        height=_scene_height(scene), scrolling=True)
 
 
 # Tracks whether the run block already rendered the mirror this script run, so the
@@ -618,6 +928,7 @@ if run_btn and not st.session_state.get("running"):
 
         progress_area.progress(1.0, text="Analyzing semantic space...")
         data = load_experiment()
+        st.session_state["experiment_results"] = data
         results = full_analysis(data)
 
         with open("results/analysis.json", "w") as f:
