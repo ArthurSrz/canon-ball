@@ -20,6 +20,7 @@ from dataclasses import dataclass, field, asdict
 OLLAMA_BASE = "http://localhost:11434"
 
 _fastembed_model = None
+_backend_cache: str | None = None
 
 
 INJECTION_MODES = {
@@ -31,14 +32,28 @@ INJECTION_MODES = {
 
 
 def _get_backend():
-    """Detect if ollama is available locally, otherwise use cloud."""
+    """Detect if ollama is available locally, otherwise use cloud (OpenRouter + fastembed).
+
+    Result is cached for the process — without the cache every chat/embed call probes
+    localhost:11434, which on remote (Streamlit Cloud) blocks ~2s per call.
+    Set CANON_BACKEND=cloud (or =ollama) to force a backend explicitly.
+    """
+    global _backend_cache
+    if _backend_cache is not None:
+        return _backend_cache
+    forced = os.environ.get("CANON_BACKEND", "").strip().lower()
+    if forced in ("ollama", "cloud"):
+        _backend_cache = forced
+        return _backend_cache
     try:
-        r = requests.get(f"{OLLAMA_BASE}/api/tags", timeout=2)
+        r = requests.get(f"{OLLAMA_BASE}/api/tags", timeout=1.5)
         if r.status_code == 200:
-            return "ollama"
+            _backend_cache = "ollama"
+            return _backend_cache
     except Exception:
         pass
-    return "cloud"
+    _backend_cache = "cloud"
+    return _backend_cache
 
 
 def _get_openrouter_key():
@@ -74,6 +89,12 @@ def chat_ollama(messages: list[dict]) -> tuple[str, float]:
 
 def chat_openrouter(messages: list[dict]) -> tuple[str, float]:
     key = _get_openrouter_key()
+    if not key:
+        raise RuntimeError(
+            "OpenRouter is the active backend (Ollama unreachable) but no "
+            "OPENROUTER_API_KEY is set. Add it to .streamlit/secrets.toml "
+            "(see secrets.toml.example) or export it as an environment variable."
+        )
     t0 = time.time()
     resp = requests.post("https://openrouter.ai/api/v1/chat/completions", json={
         "model": "qwen/qwen-2.5-7b-instruct",
@@ -82,7 +103,9 @@ def chat_openrouter(messages: list[dict]) -> tuple[str, float]:
     }, headers={
         "Authorization": f"Bearer {key}",
         "Content-Type": "application/json",
-    })
+        "HTTP-Referer": "https://github.com/ArthurSrZ/canon_ball",
+        "X-Title": "Canon Ball",
+    }, timeout=60)
     latency = (time.time() - t0) * 1000
     if resp.status_code != 200:
         raise RuntimeError(f"OpenRouter {resp.status_code}: {resp.text[:500]}")

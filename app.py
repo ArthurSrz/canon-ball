@@ -13,6 +13,7 @@ from pathlib import Path
 
 from canon_experiment import run_experiment, save_experiment, load_experiment, INJECTION_MODES
 from canon_analysis import full_analysis
+import neuronpedia_client as npc
 
 
 st.set_page_config(page_title="Canon Ball", page_icon="🎯", layout="wide",
@@ -54,6 +55,28 @@ and supervised by **high mountain guides** (Q819677).""",
 
     n_trials = st.slider("Trials per group", 3, 20, 12)
     run_btn = st.button("Fire experiment", type="primary", use_container_width=True)
+
+    st.divider()
+    st.caption("🪞 INTERNAL MIRROR · NLA")
+    nla_model = st.selectbox(
+        "Model · the brain",
+        options=["gemma-3-27b-it", "llama3.3-70b-it"],
+        format_func=lambda m: {"gemma-3-27b-it": "Gemma 3 27B (layer 41)",
+                               "llama3.3-70b-it": "Llama 3.3 70B (layer 53)"}[m],
+    )
+    nla_source = {"gemma-3-27b-it": "kitft-l41", "llama3.3-70b-it": "kitft-l53"}[nla_model]
+    nla_max_tokens = st.slider("Max tokens to verbalize", 16, 256, 128, step=16,
+                               help="Verbalizes EVERY token up to this cap (system prompt + prompt), "
+                                    "batched 16/request. Higher = more API calls = slower.")
+    nla_include_system = st.checkbox("Include knowledge layer as context", value=True,
+                                     help="Prepend the knowledge layer to the prompt so its tokens "
+                                          "are verbalized too. (NLA API accepts only user/assistant "
+                                          "roles, so it's folded into the user turn, not a system message.)")
+    trace_attrib = st.checkbox("Also trace attribution circuit (Circuit Tracer)", value=True,
+                               help="Generate the real causal attribution graph (gemma-2-2b) showing "
+                                    "how the answer is formed — feature nodes + attribution edges to the "
+                                    "output logits. Uses the prompt only (64-token cap), embedded from Neuronpedia.")
+    mirror_btn = st.button("Reveal internal features", use_container_width=True)
 
 # --- Run experiment ---
 results_path = Path("results/experiment.json")
@@ -260,10 +283,314 @@ html, body {{ margin:0; padding:0; background:#07090c; overflow:hidden; }}
 </div>
 </div>
 </body></html>"""
+def mise_en_abime_html(scene: dict, np_url: str = "") -> str:
+    """A triptych, played as three acts:
 
+      ① the prompt discloses vertically down the center (the question);
+      ② FORWARD — the attribution graph travels left→right, layer by layer, to a prominent ANSWER;
+      ③ BACKWARD — the NLA verbalizations grow leftward as roots (what each word means inside).
+
+    Each act is temporally distinct (narrated by the status line). Self-contained SVG component.
+    """
+    payload = json.dumps(scene)
+    np_js = json.dumps(np_url or "")
+    meta = scene.get("meta", {})
+
+    return f"""<!doctype html>
+<html lang="en"><head><meta charset="utf-8"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Fraunces:ital,wght@1,400;1,500&display=swap" rel="stylesheet">
+<style>
+:root {{
+  --bg-0:#07090c; --bg-2:#11161c; --bg-3:#161c24; --rule:rgba(180,200,230,0.12);
+  --ink-0:#e8edf3; --ink-1:#b8c2cf; --ink-2:#8590a0; --ink-3:#5a6473; --ink-4:#3a424d;
+  --control:#ffb547; --test:#4ad6c8; --ans:#67e8a4;
+  --mono:"JetBrains Mono",monospace; --sans:"Inter Tight",sans-serif; --disp:"Fraunces",serif;
+}}
+* {{ box-sizing:border-box; }}
+html,body {{ margin:0; background:var(--bg-0); color:var(--ink-0); font-family:var(--sans);
+  -webkit-font-smoothing:antialiased; }}
+.cols {{ display:grid; grid-template-columns:1fr 1fr 1fr; padding:14px 22px 2px; }}
+.cols .c {{ font-family:var(--mono); font-size:10px; letter-spacing:0.06em; }}
+.cols .l {{ text-align:left;  color:var(--control); }}
+.cols .m {{ text-align:center; color:var(--ink-2); }}
+.cols .r {{ text-align:right; color:var(--test); }}
+.cols .c .n {{ opacity:0.5; }}
+.status {{ font-family:var(--mono); font-size:11px; color:var(--ink-1); padding:4px 22px 8px; min-height:16px; }}
+.status .dot {{ display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--control);
+  margin-right:8px; vertical-align:middle; animation:pulse 1s infinite; }}
+.status.done .dot {{ background:var(--ans); animation:none; }}
+@keyframes pulse {{ 0%,100%{{opacity:1;}} 50%{{opacity:0.25;}} }}
+svg {{ width:100%; height:auto; display:block; }}
+.reveal {{ opacity:0; transition:opacity .5s ease; }}
+.reveal.in {{ opacity:1; }}
+.wlabel {{ font-family:var(--mono); font-weight:500; }}
+.wlabel.prompt {{ fill:var(--ink-0); }}
+.wlabel.context {{ fill:var(--ink-4); }}
+.rootlabel {{ font-family:var(--sans); fill:var(--control); }}
+.anstok {{ font-family:var(--disp); font-style:italic; fill:var(--ans); }}
+.ansprob {{ font-family:var(--mono); fill:var(--ink-3); }}
+.detail {{ font-family:var(--sans); font-size:13px; color:var(--ink-1); line-height:1.5;
+  border-left:2px solid var(--ink-4); margin:4px 22px 14px; padding:6px 0 6px 12px; min-height:18px;
+  transition:border-color .2s; }}
+.detail .lbl {{ font-family:var(--mono); font-size:9px; letter-spacing:0.16em; text-transform:uppercase;
+  color:var(--ink-3); display:block; margin-bottom:3px; }}
+.foot {{ font-family:var(--mono); font-size:10px; color:var(--ink-3); padding:0 22px 16px; }}
+.foot a {{ color:var(--test); text-decoration:none; }} .foot a:hover {{ text-decoration:underline; }}
+</style></head>
+<body>
+<div class="cols">
+  <div class="c l"><span class="n">③ backward ◀</span> NLA roots · {meta.get('nla_model','')}</div>
+  <div class="c m">① the question</div>
+  <div class="c r">forward ▶ ② attribution · {meta.get('attrib_model','')}</div>
+</div>
+<div class="status" id="status"><span class="dot"></span><span id="stxt">①&nbsp; the question, word by word…</span></div>
+<div id="stage"></div>
+<div class="detail" id="detail"><span class="lbl">hover</span><span id="dtxt">Hover a root for its full verbalization, or a node for its attribution.</span></div>
+<div class="foot" id="foot"></div>
+<script>
+const S = {payload};
+const NP_URL = {np_js};
+const NS = "http://www.w3.org/2000/svg";
+const words = S.words || [], roots = S.roots || [], tree = (S.tree || {{}});
+const tnodes = tree.nodes || [], tlinks = tree.links || [];
+const rootByWord = {{}}; roots.forEach(r => rootByWord[r.word_index]=r);
+
+const nW = Math.max(words.length, 1);
+const W = 1200;
+const rowH = Math.max(30, Math.min(72, Math.round(820 / nW)));
+const padY = 54;
+const H = Math.max(360, padY*2 + (nW-1)*rowH);
+const spineX = Math.round(W*0.36);          // thin central trunk, left of middle
+const ansX   = W - 96;                       // the ANSWER endpoint, far right
+const wordY = i => padY + i*rowH;
+const maxDepth = Math.max(tree.max_depth || 1, 1);
+const treeX = d => spineX + 46 + (d/maxDepth)*(ansX - spineX - 150);
+
+const svg = document.createElementNS(NS,"svg");
+svg.setAttribute("viewBox", `0 0 ${{W}} ${{H}}`);
+function el(t,a){{const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);return e;}}
+function detail(label,text,color){{
+  document.querySelector('#detail .lbl').textContent=label;
+  document.getElementById('dtxt').textContent=text;
+  document.getElementById('detail').style.borderLeftColor=color||"var(--ink-4)";
+}}
+
+// faint central trunk
+svg.appendChild(el("line",{{x1:spineX,y1:padY-18,x2:spineX,y2:wordY(nW-1)+18,
+  stroke:"#3a424d","stroke-width":"1","stroke-dasharray":"2 4"}}));
+
+// ── ② RIGHT: attribution tree (built hidden; revealed in act 2) ──
+const cell={{}}; tnodes.forEach(n=>{{const k=n.word_index+"_"+n.depth;(cell[k]=cell[k]||[]).push(n);}});
+const pos={{}};
+Object.values(cell).forEach(group=>{{const g=group.length;group.forEach((n,k)=>{{
+  const spread=Math.min(15,(rowH-6)/Math.max(g,1));
+  pos[n.id]={{x:treeX(n.depth),y:wordY(n.word_index)+(k-(g-1)/2)*spread}};
+}});}});
+const maxInf=Math.max(...tnodes.map(n=>n.influence||0),0.01);
+
+// ANSWER endpoint: the top logits collapse here, far right, vertically centered
+const logits=tnodes.filter(n=>n.type==="logit").sort((a,b)=>(b.prob||0)-(a.prob||0));
+const ansY=H/2;
+logits.forEach(n=>pos[n.id]={{x:ansX-4,y:ansY+(logits.indexOf(n)-(logits.length-1)/2)*16}});
+
+const linkEl=[];
+tlinks.forEach(l=>{{
+  const a=pos[l.source],b=pos[l.target]; if(!a||!b) return;
+  const mx=(a.x+b.x)/2;
+  const p=el("path",{{d:`M ${{a.x}} ${{a.y}} C ${{mx}} ${{a.y}}, ${{mx}} ${{b.y}}, ${{b.x}} ${{b.y}}`,
+    fill:"none",stroke:l.weight>=0?"#4ad6c8":"#ff5d6c",
+    "stroke-width":(0.3+Math.min(Math.abs(l.weight)/4,1.4)).toFixed(2),"stroke-opacity":"0.14"}});
+  p.classList.add("reveal"); p.dataset.draw="1";
+  p.dataset.tdepth=(tnodes.find(n=>n.id===l.target)||{{}}).depth||0;
+  svg.appendChild(p); linkEl.push(p);
+}});
+
+const nodeByDepth={{}};
+tnodes.filter(n=>n.type!=="logit").forEach(n=>{{
+  const p=pos[n.id]; if(!p) return;
+  const isEmb=n.type==="embedding";
+  const r=isEmb?4:(2.5+4.5*(n.influence/maxInf));
+  const fill=isEmb?"#ffb547":"#11161c";
+  const g=el("g",{{class:"reveal"}}); g.style.cursor="pointer";
+  const c=el("circle",{{cx:p.x,cy:p.y,r:r,fill:fill,stroke:isEmb?"#ffb547":"#4ad6c8",
+    "stroke-width":"1.2","fill-opacity":"0.9"}});
+  g.appendChild(c);
+  const desc=isEmb?("input token #"+n.ctx_idx):("feature · layer "+n.layer+" · influence "+(n.influence||0).toFixed(2));
+  g.addEventListener("mouseenter",()=>{{c.setAttribute("fill","#4ad6c8");detail(n.type||"node",desc,"#4ad6c8");}});
+  g.addEventListener("mouseleave",()=>c.setAttribute("fill",fill));
+  svg.appendChild(g);
+  (nodeByDepth[n.depth]=nodeByDepth[n.depth]||[]).push(g);
+}});
+
+// ANSWER box (revealed at the end of act 2)
+const ansTop=logits[0];
+const ansG=el("g",{{class:"reveal"}});
+ansG.appendChild(el("circle",{{cx:ansX,cy:ansY,r:9,fill:"#67e8a4","fill-opacity":"0.9"}}));
+const at=el("text",{{x:ansX-16,y:ansY-12,"text-anchor":"end",class:"anstok","font-size":"19"}});
+at.textContent=(ansTop?ansTop.label.replace(/^Output\\s*/,"").replace(/\\s*\\(p=.*$/,""):"answer");
+const ap=el("text",{{x:ansX-16,y:ansY+6,"text-anchor":"end",class:"ansprob","font-size":"10"}});
+ap.textContent=ansTop?("p="+(ansTop.prob||0).toFixed(2)):"";
+const al=el("text",{{x:ansX-16,y:ansY+22,"text-anchor":"end",class:"ansprob","font-size":"9","fill":"#5a6473"}});
+al.textContent=logits.slice(1,4).map(n=>n.label.replace(/^Output\\s*/,"").replace(/\\s*\\(p=.*$/,"")).join("  ");
+ansG.appendChild(at); ansG.appendChild(ap); ansG.appendChild(al);
+svg.appendChild(ansG);
+
+// ── ③ LEFT: NLA roots (built hidden; revealed in act 3) ──
+const rootEl={{}};
+const rootDotX = Math.max(150, spineX - 150);   // connector ends here; label sits to its left
+const rootChars = Math.max(18, Math.floor((rootDotX - 24) / 6.2));
+words.forEach(w=>{{
+  const r=rootByWord[w.i]; if(!r) return;
+  const y=wordY(w.i), x0=spineX-26, x1=rootDotX;
+  const g=el("g",{{class:"reveal"}}); g.style.cursor="pointer";
+  const p=el("path",{{d:`M ${{x0}} ${{y}} C ${{(x0+x1)/2}} ${{y}}, ${{(x0+x1)/2}} ${{y}}, ${{x1}} ${{y}}`,
+    fill:"none",stroke:"#ffb547","stroke-width":"1.1","stroke-opacity":"0.5"}}); p.dataset.draw="1";
+  g.appendChild(p);
+  g.appendChild(el("circle",{{cx:x1,cy:y,r:2.5,fill:"#ffb547"}}));
+  const lbl=el("text",{{x:x1-9,y:y+3,"text-anchor":"end",class:"rootlabel","font-size":"10.5"}});
+  const txt=(r.label||"");
+  lbl.textContent=txt.length>rootChars?txt.slice(0,rootChars-1)+"…":txt;
+  g.appendChild(lbl);
+  g.addEventListener("mouseenter",()=>{{p.setAttribute("stroke-opacity","1");detail("root · "+w.text,r.full||r.label||"","#ffb547");}});
+  g.addEventListener("mouseleave",()=>p.setAttribute("stroke-opacity","0.5"));
+  svg.appendChild(g); rootEl[w.i]=g;
+}});
+
+// ── CENTER: the prompt spine (act 1) ──
+const wordEl=[];
+words.forEach(w=>{{
+  const y=wordY(w.i);
+  const g=el("g",{{class:"reveal"}});
+  const t=el("text",{{x:spineX,y:y+4,"text-anchor":"middle",class:"wlabel "+w.role,
+    "font-size":(w.role==="prompt"?15:11)}});
+  t.textContent=w.text.length>24?w.text.slice(0,23)+"…":w.text;
+  g.appendChild(t); svg.appendChild(g); wordEl.push(g);
+}});
+
+document.getElementById("stage").appendChild(svg);
+
+// ── Choreography: three distinct acts ──
+function drawIn(p){{
+  const len=p.getTotalLength?p.getTotalLength():0;
+  if(!len){{p.classList.add("in");return;}}
+  p.style.transition="none";p.style.strokeDasharray=len;p.style.strokeDashoffset=len;
+  p.getBoundingClientRect();p.classList.add("in");
+  p.style.transition="stroke-dashoffset .55s ease, opacity .4s ease";p.style.strokeDashoffset="0";
+}}
+function setStatus(txt,done){{document.getElementById("stxt").innerHTML=txt;if(done)document.getElementById("status").classList.add("done");}}
+
+// Strictly ordered: ① PROMPT fully appears + holds, then ② ATTRIBUTION, then ③ NLA.
+const PAUSE=1300;   // deliberate beat between acts so the order reads clearly
+const step1=Math.max(150,Math.min(320,Math.round(2400/nW)));
+const ACT1=nW*step1 + PAUSE;                       // prompt done + holds
+const step2=Math.max(85,Math.min(220,Math.round(2800/maxDepth)));
+const ACT2=ACT1 + (maxDepth+1)*step2 + 450 + PAUSE; // tree done (incl. answer) + holds
+const step3=Math.max(110,Math.min(280,Math.round(2600/nW)));
+
+// ① the prompt, word by word (alone on screen)
+words.forEach(w=>setTimeout(()=>wordEl[w.i].classList.add("in"), w.i*step1));
+
+// ② forward: attribution travels to the answer — only after the prompt has fully landed
+setTimeout(()=>setStatus("②&nbsp; forward — the attribution graph grows toward the answer…"), ACT1-250);
+for(let d=0;d<=maxDepth;d++){{
+  setTimeout(()=>{{
+    (nodeByDepth[d]||[]).forEach(g=>g.classList.add("in"));
+    linkEl.filter(p=>parseInt(p.dataset.tdepth)===d).forEach(drawIn);
+  }}, ACT1+d*step2);
+}}
+setTimeout(()=>ansG.classList.add("in"), ACT1+(maxDepth+1)*step2+200);   // the answer lands
+
+// ③ backward: NLA roots grow into meaning — only after the attribution reaches the answer
+setTimeout(()=>setStatus("③&nbsp; backward — the NLA verbalizes what each word means inside the model…"), ACT2-250);
+words.forEach(w=>setTimeout(()=>{{
+  const g=rootEl[w.i]; if(!g) return;
+  g.classList.add("in"); const pp=g.querySelector('path[data-draw]'); if(pp) drawIn(pp);
+}}, ACT2+w.i*step3));
+
+setTimeout(()=>{{
+  setStatus("the mirror is complete — ① question · ② answer · ③ meaning", true);
+  if(NP_URL) document.getElementById("foot").innerHTML=`open the full attribution graph in Neuronpedia ↗`.link(NP_URL);
+}}, ACT2+nW*step3+300);
+</script>
+</body></html>"""
+
+
+def compute_scene(prompt, knowledge, nla_result, do_trace):
+    """Generate the attribution graph (best-effort), prune it, and assemble the unified scene.
+    Returns (scene_dict, np_url, attrib_status)."""
+    attrib_meta = npc.generate_attribution_graph(prompt) if do_trace else None
+    subgraph, np_url = None, ""
+    if attrib_meta and attrib_meta.get("ok"):
+        np_url = attrib_meta.get("url", "")
+        # Fewer nodes → a legible, readable tree (the viewer is for full detail).
+        subgraph = npc.fetch_attribution_subgraph(attrib_meta["s3url"], max_nodes=24, max_links=120)
+    scene = npc.build_mise_en_abime_scene(prompt, knowledge, nla_result, subgraph)
+    return scene, np_url, attrib_meta
+
+
+def _scene_height(scene) -> int:
+    """Approximate the iframe height from word count (the SVG scales to container width)."""
+    n = max(scene.get("meta", {}).get("word_count", 1), 1)
+    row = max(30, min(72, 820 // n))
+    svg_h = 108 + (n - 1) * row
+    return min(1300, max(480, int(0.62 * svg_h) + 220))
+
+
+def render_scene(scene, np_url, attrib_status):
+    """Render the unified mise-en-abîme scene, plus graceful notes for any side that failed."""
+    if attrib_status and not attrib_status.get("ok"):
+        if attrib_status.get("busy"):
+            st.warning(f"Attribution circuit unavailable (GPUs busy) — roots only. "
+                       f"({attrib_status.get('error','')})")
+        else:
+            st.caption(f"Attribution circuit unavailable: {attrib_status.get('error','')}")
+    if not scene["meta"].get("nla_ok") and not npc._np_key():
+        st.info("Tip: set `NEURONPEDIA_API_KEY` to raise rate limits "
+                "(the NLA API also works key-less, but is rate-limited per IP).")
+    components.html(mise_en_abime_html(scene, np_url=np_url),
+                    height=_scene_height(scene), scrolling=True)
+
+
+# Tracks whether the run block already rendered the mirror this script run, so the
+# results section below doesn't draw a duplicate.
+mirror_rendered_inline = False
 
 if run_btn and not st.session_state.get("running"):
     st.session_state["running"] = True
+
+    # ── First: assemble the model's internal graph for this question, live. ──
+    # Before the cannon fires, open the mirror and watch the graphe de fonctions build —
+    # one node per token of the (system prompt + prompt), verbalized in batches.
+    mirror_area = st.empty()
+    mirror_progress = st.empty()
+    _sys = knowledge_layer if nla_include_system else None
+    with st.spinner(f"Reading {nla_model}'s internal graph, token by token…"):
+        def _mp(done, total):
+            mirror_progress.progress(done / total, text=f"Verbalizing tokens · {done}/{total}")
+        try:
+            st.session_state["nla_result"] = npc.verbalize_activations(
+                prompt, model=nla_model, source=nla_source, system=_sys,
+                max_tokens=nla_max_tokens, progress=_mp,
+            )
+        except Exception as e:  # never let the mirror abort the experiment
+            st.session_state["nla_result"] = npc.NLAResult(
+                prompt=prompt, model=nla_model, source=nla_source, error=str(e)
+            )
+    mirror_progress.empty()
+    # Assemble the unified scene: attribution tree (best-effort, gemma-2-2b, prompt only) + NLA roots.
+    _nres = st.session_state["nla_result"]
+    with st.spinner("Tracing the attribution circuit, then assembling the scene…"):
+        _scene, _np_url, _attrib = compute_scene(
+            prompt, (knowledge_layer if nla_include_system else None), _nres, trace_attrib
+        )
+    st.session_state["scene"] = _scene
+    st.session_state["scene_np_url"] = _np_url
+    st.session_state["scene_attrib_status"] = _attrib
+    if _nres.ok or (_attrib and _attrib.get("ok")):
+        with mirror_area.container():
+            render_scene(_scene, _np_url, _attrib)
+        mirror_rendered_inline = True
+
     cannon_area = st.empty()
     progress_area = st.empty()
     shot_counter = [0]
@@ -828,3 +1155,35 @@ p { color:#8590a0; font-family:"JetBrains Mono",monospace; font-size:11px;
   in embedding space, with and without the launching ramp.</p>
 </div>
 </body></html>""", height=500, scrolling=False)
+
+# --- Internal mirror (NLA) ---
+# Opens the model's internal "graphe de fonctions": Neuronpedia's Activation Verbalizer describes,
+# in natural language, what the model encodes at each token of the prompt. Read-only for now.
+if mirror_btn:
+    if not prompt.strip():
+        st.warning("Enter a prompt in the sidebar first.")
+    else:
+        _mp_area = st.empty()
+        _sys = knowledge_layer if nla_include_system else None
+        with st.spinner(f"Reading {nla_model}'s activations, token by token…"):
+            def _mp(done, total):
+                _mp_area.progress(done / total, text=f"Verbalizing tokens · {done}/{total}")
+            st.session_state["nla_result"] = npc.verbalize_activations(
+                prompt, model=nla_model, source=nla_source, system=_sys,
+                max_tokens=nla_max_tokens, progress=_mp,
+            )
+        _mp_area.empty()
+        with st.spinner("Tracing the attribution circuit, then assembling the scene…"):
+            _scene, _np_url, _attrib = compute_scene(
+                prompt, (knowledge_layer if nla_include_system else None),
+                st.session_state["nla_result"], trace_attrib,
+            )
+        st.session_state["scene"] = _scene
+        st.session_state["scene_np_url"] = _np_url
+        st.session_state["scene_attrib_status"] = _attrib
+
+scene = st.session_state.get("scene")
+if scene is not None and not mirror_rendered_inline:
+    st.markdown("### 🪞 Internal mirror")
+    render_scene(scene, st.session_state.get("scene_np_url", ""),
+                 st.session_state.get("scene_attrib_status"))

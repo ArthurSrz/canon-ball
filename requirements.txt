@@ -3,7 +3,7 @@ numpy
 scikit-learn
 scipy
 plotly
-requests
+requests        # also powers the Neuronpedia NLA client (neuronpedia_client.py)
 umap-learn
 pandas
 fastembed
