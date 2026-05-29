@@ -583,6 +583,12 @@ html,body {{ margin:0; background:var(--bg-0); color:var(--ink-0); font-family:v
 .chip.on .k {{ color:var(--test); }}
 .chip .t {{ font-family:var(--mono); font-size:10px; letter-spacing:0.10em;
   text-transform:uppercase; color:var(--ink-1); }}
+@media (max-width: 1100px) {{
+  .answer {{ left:12px; right:auto; bottom:12px; transform:none;
+    max-width:min(46%, 320px); }}
+  .legend {{ align-items:flex-start; }}
+  .stage {{ min-height:380px; }}
+}}
 .replay {{ font-family:var(--mono); font-size:10px; letter-spacing:0.12em; text-transform:uppercase;
   padding:3px 10px; border:1px solid var(--rule); background:transparent; color:var(--ink-2);
   border-radius:3px; cursor:pointer; margin-left:6px; }}
