@@ -7,11 +7,11 @@ export default function ConceptScreen({ playful, go, motion }) {
       <div className="two-col" style={{ alignItems: "center" }}>
         <div>
           <h1 className="display fu" style={{ animationDelay: ".05s" }}>
-            What does <em>knowledge layers</em> do<br />to language models?
+            What do <em>knowledge layers</em> do<br />to language models?
           </h1>
           <p className="lede fu" style={{ animationDelay: ".2s" }}>
-            This is an instrument for one question: <strong>what does a knowledge layer
-            actually do to a language model?</strong> Ask a model the same thing many times
+            This is an instrument for one question: <strong>what do knowledge layers
+            actually do to language models?</strong> Ask a model the same thing many times
             and its answers scatter across a field of meaning. Add knowledge and the scatter
             changes — it <span className="test-word">tightens</span> and it
             <span style={{ color: "var(--gold)" }}> shifts</span>, as if passed through a
