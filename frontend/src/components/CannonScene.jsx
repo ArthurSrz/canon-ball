@@ -90,7 +90,7 @@ function generateBalls(seed) {
     }
   })
 
-  // test: 6 warm shots, tight cluster
+  // test: 6 warm shots, tight cluster — start at 0.58 so all control are landed first
   const test = Array.from({ length: 6 }, (_, i) => {
     const landX = 320 + (rng() - 0.5) * 35
     const landY = 100 + (rng() - 0.5) * 30
@@ -101,7 +101,7 @@ function generateBalls(seed) {
       origin: { x: 80, y: 170 },
       control: { x: 140 + rng() * 50, y: apexY },
       target: { x: landX, y: landY },
-      delay: 0.84 + i * 0.1,
+      delay: 0.58 + i * 0.06,
       r: 3 + rng() * 1.5,
     }
   })
@@ -128,7 +128,7 @@ export default function CannonScene({ playful = 0.5, motion = true }) {
   const startRef = useRef(null)
   const balls = useMemo(() => generateBalls(42), [])
 
-  const cycleDuration = 3.2 // seconds per full firing cycle
+  const cycleDuration = 4.0 // seconds — enough room for black (0-0.57) then red (0.58-0.93)
 
   useEffect(() => {
     if (!motion) {
