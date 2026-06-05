@@ -26,6 +26,21 @@ app.include_router(experiment.router, prefix="/api/experiment", tags=["experimen
 app.include_router(chain.router, prefix="/api/chain", tags=["chain"])
 
 
+@app.on_event("startup")
+async def warmup():
+    """Pre-load fastembed model at startup so first experiment doesn't cold-start."""
+    import asyncio
+    loop = asyncio.get_event_loop()
+    def _warm():
+        try:
+            from canon_experiment import _get_fastembed
+            _get_fastembed()
+            print("Embedding model warmed up.", flush=True)
+        except Exception as e:
+            print(f"Warmup skipped: {e}", flush=True)
+    loop.run_in_executor(None, _warm)
+
+
 @app.get("/health")
 def health():
     from backend.config import openrouter_key, neuronpedia_key
