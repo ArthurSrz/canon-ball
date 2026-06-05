@@ -1,6 +1,7 @@
 """Experiment endpoints — fire trials, retrieve results."""
 
 import json
+import threading
 from pathlib import Path
 
 import numpy as np
@@ -13,6 +14,9 @@ import canon_analysis as ca
 router = APIRouter()
 
 RESULTS_DIR = Path("results")
+
+# UMAP/Numba workqueue is NOT thread-safe. Serialize all UMAP calls.
+_umap_lock = threading.Lock()
 
 
 def _normalize_projection(projection: dict, trials_ctrl: list[dict], trials_test: list[dict]) -> dict:
@@ -97,7 +101,8 @@ def _run_experiment_sync(req: FireRequest):
     ce.save_experiment(run)
 
     experiment_data = ce.load_experiment()
-    analysis = ca.full_analysis(experiment_data)
+    with _umap_lock:
+        analysis = ca.full_analysis(experiment_data)
 
     # Save analysis to disk so GET /results never needs to recompute UMAP
     RESULTS_DIR.mkdir(exist_ok=True)
