@@ -96,11 +96,17 @@ def _run_experiment_sync(req: FireRequest):
     )
     ce.save_experiment(run)
 
-    # Kick off chain computation in background (doesn't block response)
-    _compile_chains_bg(req.prompt, req.knowledge_layer)
-
     experiment_data = ce.load_experiment()
     analysis = ca.full_analysis(experiment_data)
+
+    # Save analysis to disk so GET /results never needs to recompute UMAP
+    RESULTS_DIR.mkdir(exist_ok=True)
+    (RESULTS_DIR / "analysis.json").write_text(
+        __import__("json").dumps(analysis, default=float)
+    )
+
+    # Kick off chain computation AFTER UMAP finishes (avoids Numba thread conflict)
+    _compile_chains_bg(req.prompt, req.knowledge_layer)
 
     comparison = analysis["comparison"]
     projection = analysis["projection"]
@@ -138,11 +144,14 @@ def _run_experiment_sync(req: FireRequest):
 @router.get("/results")
 def get_results():
     exp_path = RESULTS_DIR / "experiment.json"
+    analysis_path = RESULTS_DIR / "analysis.json"
     if not exp_path.exists():
         raise HTTPException(404, "No experiment results found. Fire an experiment first.")
+    if not analysis_path.exists():
+        raise HTTPException(404, "Analysis not ready yet. Still computing.")
 
     experiment_data = ce.load_experiment(str(exp_path))
-    analysis = ca.full_analysis(experiment_data)
+    analysis = json.loads(analysis_path.read_text())
 
     comparison = analysis["comparison"]
     projection = analysis["projection"]
