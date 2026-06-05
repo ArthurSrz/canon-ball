@@ -70,25 +70,29 @@ export default function App() {
     })
 
     async function pollUntilDone() {
-      for (let i = 0; i < 60; i++) {
+      for (let i = 0; i < 72; i++) {
         await new Promise(r => setTimeout(r, 5000))
         try {
           const r = await getResults()
           if (r?.control?.length > 0) return r
+          // 404 or empty = still running, keep polling
         } catch (_) {}
       }
-      throw new Error('Experiment did not complete within 5 minutes')
+      throw new Error('Experiment did not complete within 6 minutes')
     }
 
     try {
       const result = await Promise.race([
-        fetchPromise,
-        // If POST drops, fall back to polling after 10s
+        fetchPromise.catch(async () => {
+          // POST failed — switch to polling immediately
+          return pollUntilDone()
+        }),
+        // Also poll in parallel starting after 15s as backup
         new Promise((resolve, reject) => {
           setTimeout(async () => {
             try { resolve(await pollUntilDone()) }
             catch (e) { reject(e) }
-          }, 10000)
+          }, 15000)
         }),
       ])
       setData(prev => ({ ...prev, ...result }))
