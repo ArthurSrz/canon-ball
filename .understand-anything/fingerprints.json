@@ -1,0 +1,1082 @@
+{
+  "version": "1.0.0",
+  "gitCommitHash": "b521f95b3696c5dc1bc7f0e5c04b341474514fb0",
+  "generatedAt": "2026-06-04T12:48:10.682Z",
+  "files": {
+    ".streamlit/config.toml": {
+      "filePath": ".streamlit/config.toml",
+      "contentHash": "0b7e7cbd279d10f0441eeb28cb4d3c5a74dc516e4ff9dfa3d32f34d7f4f7410e",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 9,
+      "hasStructuralAnalysis": true
+    },
+    ".streamlit/secrets.toml.example": {
+      "filePath": ".streamlit/secrets.toml.example",
+      "contentHash": "38cd9baeeb14fd44eaeb46a46278dfbf8226ba1e114c6bd7783ca8b919fa0612",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 10,
+      "hasStructuralAnalysis": false
+    },
+    "CLAUDE.md": {
+      "filePath": "CLAUDE.md",
+      "contentHash": "a4506476cf4c0675f1eaa17132aa9f6b403ed0de440c09934af9ad71ef7ad65c",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 48,
+      "hasStructuralAnalysis": true
+    },
+    "app.py": {
+      "filePath": "app.py",
+      "contentHash": "72dbb314e15a3958c8551f0c0dc73c044d65fe834976c02ef510c42f9988dc05",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "streamlit",
+          "specifiers": [
+            "st"
+          ]
+        },
+        {
+          "source": "streamlit.components.v1",
+          "specifiers": [
+            "components"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 48,
+      "hasStructuralAnalysis": true
+    },
+    "borges_graph.py": {
+      "filePath": "borges_graph.py",
+      "contentHash": "6edb8c7202636e018917a63ae8ddac534d6b950eb67403db6eb6422c1375326f",
+      "functions": [
+        {
+          "name": "_sliding_window",
+          "params": [
+            "text",
+            "max_tokens"
+          ],
+          "returnType": "str",
+          "exported": true,
+          "lineCount": 7
+        },
+        {
+          "name": "_extract_predicted_token",
+          "params": [
+            "attrib",
+            "subgraph"
+          ],
+          "returnType": "str",
+          "exported": true,
+          "lineCount": 17
+        },
+        {
+          "name": "compile_attribution",
+          "params": [
+            "prompt",
+            "system_prompt",
+            "max_tokens",
+            "on_step"
+          ],
+          "returnType": "CompiledGraph",
+          "exported": true,
+          "lineCount": 51
+        }
+      ],
+      "classes": [
+        {
+          "name": "Step",
+          "methods": [
+            "feature_ids"
+          ],
+          "properties": [
+            "index",
+            "token",
+            "context_length",
+            "attribution",
+            "subgraph"
+          ],
+          "exported": true,
+          "lineCount": 18
+        },
+        {
+          "name": "CompiledGraph",
+          "methods": [
+            "generated_text",
+            "all_feature_ids",
+            "to_dict",
+            "from_dict"
+          ],
+          "properties": [
+            "prompt",
+            "system_prompt",
+            "model",
+            "steps"
+          ],
+          "exported": true,
+          "lineCount": 41
+        }
+      ],
+      "imports": [
+        {
+          "source": "dataclasses",
+          "specifiers": [
+            "dataclass",
+            "field",
+            "asdict"
+          ]
+        },
+        {
+          "source": "typing",
+          "specifiers": [
+            "Callable"
+          ]
+        },
+        {
+          "source": "neuronpedia_client",
+          "specifiers": [
+            "npc"
+          ]
+        }
+      ],
+      "exports": [
+        "Step",
+        "CompiledGraph",
+        "_sliding_window",
+        "_extract_predicted_token",
+        "compile_attribution"
+      ],
+      "totalLines": 183,
+      "hasStructuralAnalysis": true
+    },
+    "canon_analysis.py": {
+      "filePath": "canon_analysis.py",
+      "contentHash": "431b45ef573778e9097b01264079f82ad2b6e5ca1a0ef78b60489d51af3baed9",
+      "functions": [
+        {
+          "name": "collect_embeddings",
+          "params": [
+            "trials"
+          ],
+          "returnType": "np.ndarray",
+          "exported": true,
+          "lineCount": 6
+        },
+        {
+          "name": "collect_embeddings_by_trial",
+          "params": [
+            "trials"
+          ],
+          "returnType": "list[np.ndarray]",
+          "exported": true,
+          "lineCount": 3
+        },
+        {
+          "name": "compute_centroid",
+          "params": [
+            "embs"
+          ],
+          "returnType": "np.ndarray",
+          "exported": true,
+          "lineCount": 2
+        },
+        {
+          "name": "compute_dispersion",
+          "params": [
+            "embs"
+          ],
+          "returnType": "dict",
+          "exported": true,
+          "lineCount": 14
+        },
+        {
+          "name": "compute_pairwise_distances",
+          "params": [
+            "embs"
+          ],
+          "returnType": "dict",
+          "exported": true,
+          "lineCount": 10
+        },
+        {
+          "name": "compute_per_trial_centroids",
+          "params": [
+            "trials"
+          ],
+          "returnType": "np.ndarray",
+          "exported": true,
+          "lineCount": 7
+        },
+        {
+          "name": "compare_groups",
+          "params": [
+            "control_trials",
+            "test_trials"
+          ],
+          "returnType": "dict",
+          "exported": true,
+          "lineCount": 31
+        },
+        {
+          "name": "project_2d",
+          "params": [
+            "control_trials",
+            "test_trials",
+            "method"
+          ],
+          "returnType": "dict",
+          "exported": true,
+          "lineCount": 40
+        },
+        {
+          "name": "build_trial_labels",
+          "params": [
+            "trials"
+          ],
+          "returnType": "list[str]",
+          "exported": true,
+          "lineCount": 7
+        },
+        {
+          "name": "full_analysis",
+          "params": [
+            "experiment_data"
+          ],
+          "returnType": "dict",
+          "exported": true,
+          "lineCount": 20
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "numpy",
+          "specifiers": [
+            "np"
+          ]
+        },
+        {
+          "source": "sklearn.metrics.pairwise",
+          "specifiers": [
+            "cosine_distances",
+            "euclidean_distances"
+          ]
+        },
+        {
+          "source": "scipy.spatial.distance",
+          "specifiers": [
+            "cdist"
+          ]
+        },
+        {
+          "source": "scipy.stats",
+          "specifiers": [
+            "mannwhitneyu"
+          ]
+        },
+        {
+          "source": "umap",
+          "specifiers": [
+            "umap"
+          ]
+        }
+      ],
+      "exports": [
+        "collect_embeddings",
+        "collect_embeddings_by_trial",
+        "compute_centroid",
+        "compute_dispersion",
+        "compute_pairwise_distances",
+        "compute_per_trial_centroids",
+        "compare_groups",
+        "project_2d",
+        "build_trial_labels",
+        "full_analysis"
+      ],
+      "totalLines": 172,
+      "hasStructuralAnalysis": true
+    },
+    "canon_experiment.py": {
+      "filePath": "canon_experiment.py",
+      "contentHash": "389ae36c7bfac29f43f228601fd360cbce506a8490cc4b963d2bfd5bdc8080e0",
+      "functions": [
+        {
+          "name": "_get_backend",
+          "params": [],
+          "exported": true,
+          "lineCount": 23
+        },
+        {
+          "name": "_get_openrouter_key",
+          "params": [],
+          "exported": true,
+          "lineCount": 8
+        },
+        {
+          "name": "_get_fastembed",
+          "params": [],
+          "exported": true,
+          "lineCount": 6
+        },
+        {
+          "name": "chat_ollama",
+          "params": [
+            "messages"
+          ],
+          "returnType": "tuple[str, float]",
+          "exported": true,
+          "lineCount": 11
+        },
+        {
+          "name": "chat_openrouter",
+          "params": [
+            "messages"
+          ],
+          "returnType": "tuple[str, float]",
+          "exported": true,
+          "lineCount": 23
+        },
+        {
+          "name": "embed_ollama",
+          "params": [
+            "texts"
+          ],
+          "returnType": "list[list[float]]",
+          "exported": true,
+          "lineCount": 7
+        },
+        {
+          "name": "embed_fastembed",
+          "params": [
+            "texts"
+          ],
+          "returnType": "list[list[float]]",
+          "exported": true,
+          "lineCount": 4
+        },
+        {
+          "name": "chat",
+          "params": [
+            "messages"
+          ],
+          "returnType": "tuple[str, float]",
+          "exported": true,
+          "lineCount": 4
+        },
+        {
+          "name": "embed_texts",
+          "params": [
+            "texts"
+          ],
+          "returnType": "list[list[float]]",
+          "exported": true,
+          "lineCount": 4
+        },
+        {
+          "name": "tokenize_output",
+          "params": [
+            "text"
+          ],
+          "returnType": "list[str]",
+          "exported": true,
+          "lineCount": 3
+        },
+        {
+          "name": "assemble_messages",
+          "params": [
+            "prompt",
+            "knowledge_layer",
+            "mode"
+          ],
+          "returnType": "list[dict]",
+          "exported": true,
+          "lineCount": 30
+        },
+        {
+          "name": "run_single_trial",
+          "params": [
+            "trial_type",
+            "index",
+            "prompt",
+            "knowledge_layer",
+            "injection_mode"
+          ],
+          "returnType": "Trial",
+          "exported": true,
+          "lineCount": 24
+        },
+        {
+          "name": "run_experiment",
+          "params": [
+            "prompt",
+            "knowledge_layer",
+            "n_trials",
+            "injection_mode",
+            "progress_callback"
+          ],
+          "returnType": "ExperimentRun",
+          "exported": true,
+          "lineCount": 25
+        },
+        {
+          "name": "save_experiment",
+          "params": [
+            "run",
+            "path"
+          ],
+          "exported": true,
+          "lineCount": 15
+        },
+        {
+          "name": "load_experiment",
+          "params": [
+            "path"
+          ],
+          "returnType": "dict",
+          "exported": true,
+          "lineCount": 3
+        }
+      ],
+      "classes": [
+        {
+          "name": "Trial",
+          "methods": [],
+          "properties": [
+            "trial_type",
+            "trial_index",
+            "prompt",
+            "knowledge_layer",
+            "raw_output",
+            "output_tokens",
+            "embeddings",
+            "latency_ms"
+          ],
+          "exported": true,
+          "lineCount": 9
+        },
+        {
+          "name": "ExperimentRun",
+          "methods": [],
+          "properties": [
+            "prompt",
+            "knowledge_layer",
+            "n_trials",
+            "injection_mode",
+            "control_trials",
+            "test_trials",
+            "timestamp"
+          ],
+          "exported": true,
+          "lineCount": 8
+        }
+      ],
+      "imports": [
+        {
+          "source": "json",
+          "specifiers": [
+            "json"
+          ]
+        },
+        {
+          "source": "os",
+          "specifiers": [
+            "os"
+          ]
+        },
+        {
+          "source": "re",
+          "specifiers": [
+            "re"
+          ]
+        },
+        {
+          "source": "time",
+          "specifiers": [
+            "time"
+          ]
+        },
+        {
+          "source": "requests",
+          "specifiers": [
+            "requests"
+          ]
+        },
+        {
+          "source": "numpy",
+          "specifiers": [
+            "np"
+          ]
+        },
+        {
+          "source": "pathlib",
+          "specifiers": [
+            "Path"
+          ]
+        },
+        {
+          "source": "dataclasses",
+          "specifiers": [
+            "dataclass",
+            "field",
+            "asdict"
+          ]
+        }
+      ],
+      "exports": [
+        "_get_backend",
+        "_get_openrouter_key",
+        "_get_fastembed",
+        "chat_ollama",
+        "chat_openrouter",
+        "embed_ollama",
+        "embed_fastembed",
+        "chat",
+        "embed_texts",
+        "Trial",
+        "ExperimentRun",
+        "tokenize_output",
+        "assemble_messages",
+        "run_single_trial",
+        "run_experiment",
+        "save_experiment",
+        "load_experiment"
+      ],
+      "totalLines": 275,
+      "hasStructuralAnalysis": true
+    },
+    "html_components.py": {
+      "filePath": "html_components.py",
+      "contentHash": "1b8cb8b432b1dfda3a942b7a6ab336e3ea9faa4fbef9eeddebeb871dc1d843e7",
+      "functions": [
+        {
+          "name": "cannon_animation_html",
+          "params": [
+            "shot_count",
+            "total_shots",
+            "current_msg",
+            "progress_pct"
+          ],
+          "exported": true,
+          "lineCount": 201
+        },
+        {
+          "name": "mise_en_abime_html",
+          "params": [
+            "scene",
+            "np_url"
+          ],
+          "returnType": "str",
+          "exported": true,
+          "lineCount": 219
+        },
+        {
+          "name": "lens_html",
+          "params": [
+            "scene"
+          ],
+          "returnType": "str",
+          "exported": true,
+          "lineCount": 265
+        },
+        {
+          "name": "_lens_height",
+          "params": [],
+          "returnType": "int",
+          "exported": true,
+          "lineCount": 3
+        },
+        {
+          "name": "_scene_height",
+          "params": [
+            "scene"
+          ],
+          "returnType": "int",
+          "exported": true,
+          "lineCount": 6
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "json",
+          "specifiers": [
+            "json"
+          ]
+        }
+      ],
+      "exports": [
+        "cannon_animation_html",
+        "mise_en_abime_html",
+        "lens_html",
+        "_lens_height",
+        "_scene_height"
+      ],
+      "totalLines": 711,
+      "hasStructuralAnalysis": true
+    },
+    "injection_mode_results.md": {
+      "filePath": "injection_mode_results.md",
+      "contentHash": "da0351768b7936407449e93eb6feef18ab337dc5a03d1ea95f87f3c31cd7381d",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 28,
+      "hasStructuralAnalysis": true
+    },
+    "neuronpedia_client.py": {
+      "filePath": "neuronpedia_client.py",
+      "contentHash": "9c5b6141dc715d24943834483fcf7737bb3818bda47eb38137ef74e4ebfa8306",
+      "functions": [
+        {
+          "name": "_np_key",
+          "params": [],
+          "returnType": "str",
+          "exported": true,
+          "lineCount": 10
+        },
+        {
+          "name": "_headers",
+          "params": [],
+          "returnType": "dict",
+          "exported": true,
+          "lineCount": 6
+        },
+        {
+          "name": "list_sources",
+          "params": [],
+          "returnType": "list[dict]",
+          "exported": true,
+          "lineCount": 5
+        },
+        {
+          "name": "_explain",
+          "params": [
+            "positions",
+            "model",
+            "source",
+            "text",
+            "messages",
+            "temperature"
+          ],
+          "returnType": "dict",
+          "exported": true,
+          "lineCount": 24
+        },
+        {
+          "name": "_completion",
+          "params": [
+            "prompt",
+            "model",
+            "temperature",
+            "completion_tokens"
+          ],
+          "returnType": "dict | None",
+          "exported": true,
+          "lineCount": 19
+        },
+        {
+          "name": "_feature_from_record",
+          "params": [
+            "r"
+          ],
+          "returnType": "Feature | None",
+          "exported": true,
+          "lineCount": 11
+        },
+        {
+          "name": "verbalize_activations",
+          "params": [
+            "prompt",
+            "model",
+            "source",
+            "system",
+            "max_tokens",
+            "temperature",
+            "progress"
+          ],
+          "returnType": "NLAResult",
+          "exported": true,
+          "lineCount": 74
+        },
+        {
+          "name": "generate_attribution_graph",
+          "params": [
+            "prompt",
+            "model",
+            "slug_prefix"
+          ],
+          "returnType": "dict",
+          "exported": true,
+          "lineCount": 41
+        },
+        {
+          "name": "build_attribution_graph",
+          "params": [
+            "nla"
+          ],
+          "returnType": "dict",
+          "exported": true,
+          "lineCount": 60
+        },
+        {
+          "name": "fetch_attribution_subgraph",
+          "params": [
+            "s3url",
+            "max_nodes",
+            "max_links"
+          ],
+          "returnType": "dict",
+          "exported": true,
+          "lineCount": 76
+        },
+        {
+          "name": "_words_with_spans",
+          "params": [
+            "text"
+          ],
+          "returnType": "list[dict]",
+          "exported": true,
+          "lineCount": 8
+        },
+        {
+          "name": "_map_tokens_to_words",
+          "params": [
+            "token_texts",
+            "words",
+            "base_offset",
+            "shift"
+          ],
+          "returnType": "list[int | None]",
+          "exported": true,
+          "lineCount": 20
+        },
+        {
+          "name": "build_mise_en_abime_scene",
+          "params": [
+            "prompt",
+            "knowledge",
+            "nla",
+            "attrib"
+          ],
+          "returnType": "dict",
+          "exported": true,
+          "lineCount": 66
+        },
+        {
+          "name": "build_lens_scene",
+          "params": [
+            "prompt",
+            "knowledge",
+            "nla",
+            "attrib",
+            "answer",
+            "n_rays"
+          ],
+          "returnType": "dict",
+          "exported": true,
+          "lineCount": 42
+        }
+      ],
+      "classes": [
+        {
+          "name": "Feature",
+          "methods": [
+            "short_label"
+          ],
+          "properties": [
+            "position",
+            "token",
+            "description",
+            "l2_norm",
+            "cosine_similarity",
+            "mse"
+          ],
+          "exported": true,
+          "lineCount": 17
+        },
+        {
+          "name": "NLAResult",
+          "methods": [
+            "ok"
+          ],
+          "properties": [
+            "prompt",
+            "model",
+            "source",
+            "layer_index",
+            "prompt_length",
+            "features",
+            "response",
+            "truncated",
+            "error"
+          ],
+          "exported": true,
+          "lineCount": 14
+        }
+      ],
+      "imports": [
+        {
+          "source": "os",
+          "specifiers": [
+            "os"
+          ]
+        },
+        {
+          "source": "time",
+          "specifiers": [
+            "time"
+          ]
+        },
+        {
+          "source": "dataclasses",
+          "specifiers": [
+            "dataclass",
+            "field"
+          ]
+        },
+        {
+          "source": "requests",
+          "specifiers": [
+            "requests"
+          ]
+        }
+      ],
+      "exports": [
+        "_np_key",
+        "_headers",
+        "Feature",
+        "NLAResult",
+        "list_sources",
+        "_explain",
+        "_completion",
+        "_feature_from_record",
+        "verbalize_activations",
+        "generate_attribution_graph",
+        "build_attribution_graph",
+        "fetch_attribution_subgraph",
+        "_words_with_spans",
+        "_map_tokens_to_words",
+        "build_mise_en_abime_scene",
+        "build_lens_scene"
+      ],
+      "totalLines": 586,
+      "hasStructuralAnalysis": true
+    },
+    "pages/1_Canon_Ball.py": {
+      "filePath": "pages/1_Canon_Ball.py",
+      "contentHash": "59ce44c36b0bb123c9979257a2bce5706d219e8391cae39a72ee4fc46b5e067b",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "streamlit",
+          "specifiers": [
+            "st"
+          ]
+        },
+        {
+          "source": "streamlit.components.v1",
+          "specifiers": [
+            "components"
+          ]
+        },
+        {
+          "source": "json",
+          "specifiers": [
+            "json"
+          ]
+        },
+        {
+          "source": "time",
+          "specifiers": [
+            "time"
+          ]
+        },
+        {
+          "source": "pathlib",
+          "specifiers": [
+            "Path"
+          ]
+        },
+        {
+          "source": "canon_experiment",
+          "specifiers": [
+            "run_experiment",
+            "save_experiment",
+            "load_experiment",
+            "INJECTION_MODES"
+          ]
+        },
+        {
+          "source": "canon_analysis",
+          "specifiers": [
+            "full_analysis"
+          ]
+        },
+        {
+          "source": "shared_sidebar",
+          "specifiers": [
+            "render_shared_sidebar"
+          ]
+        },
+        {
+          "source": "html_components",
+          "specifiers": [
+            "cannon_animation_html"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 601,
+      "hasStructuralAnalysis": true
+    },
+    "pages/2_Borges_Graph.py": {
+      "filePath": "pages/2_Borges_Graph.py",
+      "contentHash": "b344e479f02359ee63fcf1e639ce6462a3d63079004f61acfab5a46c6b839bbe",
+      "functions": [
+        {
+          "name": "compute_scene",
+          "params": [
+            "prompt",
+            "knowledge",
+            "nla_result",
+            "do_trace"
+          ],
+          "exported": true,
+          "lineCount": 9
+        },
+        {
+          "name": "render_scene",
+          "params": [
+            "scene",
+            "np_url",
+            "attrib_status",
+            "answer"
+          ],
+          "exported": true,
+          "lineCount": 25
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "streamlit",
+          "specifiers": [
+            "st"
+          ]
+        },
+        {
+          "source": "streamlit.components.v1",
+          "specifiers": [
+            "components"
+          ]
+        },
+        {
+          "source": "neuronpedia_client",
+          "specifiers": [
+            "npc"
+          ]
+        },
+        {
+          "source": "shared_sidebar",
+          "specifiers": [
+            "render_shared_sidebar"
+          ]
+        },
+        {
+          "source": "html_components",
+          "specifiers": [
+            "lens_html",
+            "mise_en_abime_html",
+            "_lens_height",
+            "_scene_height"
+          ]
+        }
+      ],
+      "exports": [
+        "compute_scene",
+        "render_scene"
+      ],
+      "totalLines": 126,
+      "hasStructuralAnalysis": true
+    },
+    "report.html": {
+      "filePath": "report.html",
+      "contentHash": "a40afb028670153d12434369b68199281a6219b4d14129117aa00acbb33fa6f6",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 6714,
+      "hasStructuralAnalysis": false
+    },
+    "report.qmd": {
+      "filePath": "report.qmd",
+      "contentHash": "4b39229db34c696ec08fa924d0390aebac67c3c0890817aaf1473d2ec9c65ae8",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 108,
+      "hasStructuralAnalysis": false
+    },
+    "requirements.txt": {
+      "filePath": "requirements.txt",
+      "contentHash": "7f4be2d32dc18ed98de928a141094ac19c7f52443511865c5ba959e4b52dcd54",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 10,
+      "hasStructuralAnalysis": false
+    },
+    "shared_sidebar.py": {
+      "filePath": "shared_sidebar.py",
+      "contentHash": "a59636939bfd804e8e34fd8b914aa97ceb58773d27a7c638a6c15138a1626389",
+      "functions": [
+        {
+          "name": "render_shared_sidebar",
+          "params": [],
+          "returnType": "dict",
+          "exported": true,
+          "lineCount": 30
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "streamlit",
+          "specifiers": [
+            "st"
+          ]
+        }
+      ],
+      "exports": [
+        "render_shared_sidebar"
+      ],
+      "totalLines": 36,
+      "hasStructuralAnalysis": true
+    },
+    "troubleshooting.md": {
+      "filePath": "troubleshooting.md",
+      "contentHash": "f527d6b44ad36ec38273c4c09c53b4591b386532e1e551f06474cf34ca4ea6ee",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 90,
+      "hasStructuralAnalysis": true
+    }
+  }
+}

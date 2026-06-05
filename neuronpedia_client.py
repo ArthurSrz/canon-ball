@@ -38,13 +38,11 @@ _TIMEOUT = 90
 
 
 def _np_key() -> str:
-    """Resolve the Neuronpedia API key from st.secrets, then env. May be empty (auth is optional)."""
+    """Resolve the Neuronpedia API key from backend config, then env. May be empty (auth is optional)."""
     try:
-        import streamlit as st
-
-        if hasattr(st, "secrets") and "NEURONPEDIA_API_KEY" in st.secrets:
-            return st.secrets["NEURONPEDIA_API_KEY"]
-    except Exception:
+        from backend.config import neuronpedia_key
+        return neuronpedia_key()
+    except ImportError:
         pass
     return os.environ.get("NEURONPEDIA_API_KEY", "")
 
@@ -411,6 +409,7 @@ def fetch_attribution_subgraph(s3url: str, max_nodes: int = 50, max_links: int =
     nodes = [
         {
             "id": n["node_id"],
+            "feature": n.get("feature"),
             "layer": n.get("layer"),
             "depth": _depth(n),
             "ctx_idx": n.get("ctx_idx", 0),

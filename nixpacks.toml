@@ -1,0 +1,12 @@
+[phases.setup]
+nixPkgs = ["nodejs_20"]
+
+[phases.build]
+cmds = [
+  "cd frontend && npm install && npm run build",
+  "pip install -r backend/requirements.txt",
+  "pip install uvicorn[standard] fastapi"
+]
+
+[start]
+cmd = "uvicorn backend.main:app --host 0.0.0.0 --port $PORT"

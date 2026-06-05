@@ -41,7 +41,7 @@ def _get_backend():
     global _backend_cache
     if _backend_cache is not None:
         return _backend_cache
-    forced = os.environ.get("CANON_BACKEND", "").strip().lower()
+    forced = os.environ.get("CANON_BACKEND", "cloud").strip().lower()
     if forced in ("ollama", "cloud"):
         _backend_cache = forced
         return _backend_cache
@@ -58,10 +58,9 @@ def _get_backend():
 
 def _get_openrouter_key():
     try:
-        import streamlit as st
-        if hasattr(st, "secrets") and "OPENROUTER_API_KEY" in st.secrets:
-            return st.secrets["OPENROUTER_API_KEY"]
-    except Exception:
+        from backend.config import openrouter_key
+        return openrouter_key()
+    except ImportError:
         pass
     return os.environ.get("OPENROUTER_API_KEY", "")
 
@@ -88,18 +87,18 @@ def chat_ollama(messages: list[dict]) -> tuple[str, float]:
 
 
 def chat_openrouter(messages: list[dict]) -> tuple[str, float]:
+    hf_key = os.environ.get("HF_API_KEY", "")
+    if hf_key:
+        return _chat_hf(messages, hf_key)
     key = _get_openrouter_key()
     if not key:
-        raise RuntimeError(
-            "OpenRouter is the active backend (Ollama unreachable) but no "
-            "OPENROUTER_API_KEY is set. Add it to .streamlit/secrets.toml "
-            "(see secrets.toml.example) or export it as an environment variable."
-        )
+        raise RuntimeError("No OPENROUTER_API_KEY or HF_API_KEY set.")
     t0 = time.time()
     resp = requests.post("https://openrouter.ai/api/v1/chat/completions", json={
-        "model": "qwen/qwen-2.5-7b-instruct",
+        "model": "google/gemma-3-4b-it",
         "messages": messages,
         "temperature": 0.8,
+        "max_tokens": 150,
     }, headers={
         "Authorization": f"Bearer {key}",
         "Content-Type": "application/json",
@@ -110,6 +109,33 @@ def chat_openrouter(messages: list[dict]) -> tuple[str, float]:
     if resp.status_code != 200:
         raise RuntimeError(f"OpenRouter {resp.status_code}: {resp.text[:500]}")
     return resp.json()["choices"][0]["message"]["content"], latency
+
+
+def _chat_hf(messages: list[dict], key: str) -> tuple[str, float]:
+    # gemma-2-2b-it on featherless-ai doesn't support system role — fold into user
+    normalized = []
+    for m in messages:
+        role = "user" if m["role"] == "system" else m["role"]
+        if normalized and normalized[-1]["role"] == role:
+            normalized[-1]["content"] += "\n" + m["content"]
+        else:
+            normalized.append({"role": role, "content": m["content"]})
+    t0 = time.time()
+    resp = requests.post(
+        "https://router.huggingface.co/featherless-ai/v1/chat/completions",
+        headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+        json={
+            "model": "google/gemma-2-2b-it",
+            "messages": normalized,
+            "max_tokens": 150,
+            "temperature": 0.8,
+        },
+        timeout=60,
+    )
+    latency = (time.time() - t0) * 1000
+    if resp.status_code != 200:
+        raise RuntimeError(f"HF {resp.status_code}: {resp.text[:300]}")
+    return resp.json()["choices"][0]["message"]["content"].strip(), latency
 
 
 def embed_ollama(texts: list[str]) -> list[list[float]]:
