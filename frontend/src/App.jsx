@@ -104,7 +104,7 @@ export default function App() {
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS)
   const [step, setStep] = useState(0)
   const [maxStep, setMaxStep] = useState(0)
-  const [mode, setMode] = useState("system_user")
+  const [mode, setMode] = useState("template")
   const [running, setRunning] = useState(false)
   const [runKey, setRunKey] = useState(0)
   const [data, setData] = useState(MOCK_DATA)
