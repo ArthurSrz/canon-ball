@@ -1,13 +1,15 @@
-"""Pydantic models matching the frontend's expected data shapes (from data.js mockup)."""
+"""Pydantic models matching the frontend's expected data shapes."""
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
+from pydantic.alias_generators import to_camel
 
 
 class FireRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
     prompt: str
     knowledge_layer: str
     n_trials: int = 8
-    injection_mode: str = "system_user"
+    injection_mode: str = "template"
 
 
 class TraceRequest(BaseModel):

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react'
-import { getChainResults } from '../api'
+import { getChainResults, getChainStatus } from '../api'
 
 /* ─── Borges Graph component ──────────────────────────────────────────────── */
 
@@ -53,8 +53,8 @@ function BorgesGraph({ graph, color, label }) {
 
   function nodeColor(c) {
     if (c.type === 'embedding') return '#000'
-    if (c.type === 'logit') return color
-    return c.fresh ? color : '#aaa'
+    if (c.type === 'logit') return color  // uses the panel's color (var(--control) or var(--gold))
+    return c.fresh ? '#555' : '#ccc'  // feature nodes: dark when fresh, faded when old
   }
 
   return (
@@ -98,9 +98,10 @@ function BorgesGraph({ graph, color, label }) {
               <g key={i} onMouseEnter={() => setHovered(i)} onMouseLeave={() => setHovered(null)}>
                 <circle cx={cx(c.depth)} cy={cy(c.ctx_idx)} r={r + 4} fill="transparent" />
                 <circle cx={cx(c.depth)} cy={cy(c.ctx_idx)} r={r}
-                  fill={c.fresh ? col : 'none'}
-                  stroke={col} strokeWidth={c.fresh ? 0 : 1.5}
-                  opacity={c.fresh ? 0.85 : 0.35} />
+                  fill={c.type === 'logit' ? col : (c.fresh ? col : 'none')}
+                  stroke={col}
+                  strokeWidth={c.type === 'logit' ? 2 : (c.fresh ? 0 : 1)}
+                  opacity={c.fresh ? 0.9 : 0.25} />
                 {isHov && (
                   <text x={cx(c.depth)} y={cy(c.ctx_idx) - r - 5}
                     fontFamily="var(--mono)" fontSize="8" fill={col} textAnchor="middle">
@@ -167,37 +168,43 @@ export default function FocalLineScreen({ data, go }) {
   const [chains, setChains] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [chainStatus, setChainStatus] = useState(null)
   const pollRef = useRef(null)
 
   useEffect(() => {
-    async function load() {
+    let interval = null
+
+    async function poll() {
       try {
-        const result = await getChainResults()
-        setChains(result)
-        setLoading(false)
-      } catch (e) {
-        // Chains not ready yet — poll every 10s
-        if (e.message.includes('404') || e.message.includes('not yet')) {
-          pollRef.current = setInterval(async () => {
-            try {
-              const result = await getChainResults()
-              setChains(result)
-              setLoading(false)
-              clearInterval(pollRef.current)
-            } catch (_) {}
-          }, 10000)
-        } else {
-          setError(e.message)
+        const status = await getChainStatus()
+        setChainStatus(status)
+
+        if (status.state === 'ready') {
+          const result = await getChainResults()
+          setChains(result)
           setLoading(false)
+          clearInterval(interval)
+        } else if (status.state === 'failed') {
+          setError(status.error || 'Chain computation failed')
+          setLoading(false)
+          clearInterval(interval)
         }
+        // 'computing' or 'idle' → keep polling
+      } catch (e) {
+        // If status endpoint not available yet, try results directly (backwards compat)
+        try {
+          const result = await getChainResults()
+          setChains(result)
+          setLoading(false)
+          clearInterval(interval)
+        } catch (_) {}
       }
     }
-    load()
-    return () => clearInterval(pollRef.current)
-  }, [])
 
-  const ctrlText = data?.control?.[0]?.output || ''
-  const testText = data?.test?.[0]?.output || ''
+    poll()
+    interval = setInterval(poll, 3000)
+    return () => clearInterval(interval)
+  }, [])
 
   return (
     <div className="screen-inner">
@@ -215,10 +222,25 @@ export default function FocalLineScreen({ data, go }) {
           <div style={{ fontFamily: 'var(--display)', fontSize: 20, textTransform: 'uppercase', marginBottom: 8 }}>
             Computing chains…
           </div>
-          <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: '#777' }}>
-            Circuit Tracer is running. This takes ~2–3 minutes.
-            The page will update automatically.
-          </div>
+          {chainStatus?.state === 'computing' && chainStatus.total > 0 && (
+            <>
+              <div style={{ margin: '16px auto', background: '#eee', height: 6, width: '80%', maxWidth: 300 }}>
+                <div style={{
+                  background: 'var(--gold)', height: '100%',
+                  width: `${(chainStatus.step / chainStatus.total) * 100}%`,
+                  transition: 'width 0.5s ease',
+                }} />
+              </div>
+              <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: '#777' }}>
+                Step {chainStatus.step} of {chainStatus.total} · Circuit Tracer running
+              </div>
+            </>
+          )}
+          {(!chainStatus || chainStatus.state === 'idle') && (
+            <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: '#777' }}>
+              Fire an experiment first to generate chains.
+            </div>
+          )}
         </div>
       )}
 
@@ -243,20 +265,10 @@ export default function FocalLineScreen({ data, go }) {
             </div>
           </div>
 
-          {/* Answer comparison */}
-          <div className="two-col" style={{ gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
-            <div className="panel">
-              <div className="panel-label" style={{ color: 'var(--control)' }}>Control output</div>
-              <p style={{ fontFamily: 'var(--mono)', fontSize: 13, lineHeight: 1.6, margin: 0, color: '#333' }}>
-                {ctrlText || '—'}
-              </p>
-            </div>
-            <div className="panel" style={{ borderColor: 'var(--gold)' }}>
-              <div className="panel-label" style={{ color: 'var(--gold)' }}>◆ Test output (with KL)</div>
-              <p style={{ fontFamily: 'var(--mono)', fontSize: 13, lineHeight: 1.6, margin: 0, color: '#333' }}>
-                {testText || '—'}
-              </p>
-            </div>
+          <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: '#999', margin: '4px 0 16px', borderLeft: '3px solid #e4e4e4', paddingLeft: 12, lineHeight: 1.6 }}>
+            The chains above trace <strong>gemma-2-2b</strong> via Neuronpedia Circuit Tracer —
+            an independent model run on the same prompt, not a trace of the experiment outputs on the Landing Map.
+            The Library of Babel is consulted in series.
           </div>
 
           {chains.control?.meta?.attribution_url && (

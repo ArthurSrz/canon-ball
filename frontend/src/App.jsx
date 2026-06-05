@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useTweaks, TweaksPanel, TweakSection, TweakSlider, TweakToggle, TweakColor } from './components/TweaksPanel'
-import { fireExperiment, getResults, buildFocal } from './api'
+import { buildFocal } from './api'
+import { useExperiment } from './hooks/useExperiment'
 import MOCK_DATA from './mockData'
 import ConceptScreen from './screens/ConceptScreen'
 import SetupScreen from './screens/SetupScreen'
@@ -105,8 +106,9 @@ export default function App() {
   const [step, setStep] = useState(0)
   const [maxStep, setMaxStep] = useState(0)
   const [mode, setMode] = useState("template")
-  const [running, setRunning] = useState(false)
   const [runKey, setRunKey] = useState(0)
+  const { fire: hookFire, status: experimentStatus } = useExperiment()
+  const running = experimentStatus === 'firing' || experimentStatus === 'polling'
   const [data, setData] = useState(MOCK_DATA)
 
   const playful = (t.metaphor ?? 50) / 100
@@ -128,52 +130,24 @@ export default function App() {
   }
 
   async function fire() {
-    setRunning(true)  // overlay shows immediately
     const promptEl = document.querySelector('.field textarea.input')
     const klEl = document.querySelector('.field.knowledge textarea.input')
     const prompt = promptEl?.value || data.setup.prompt
     const kl = klEl?.value || data.setup.knowledgeLayer
 
-    // Fire and forget — if connection drops, poll until results appear
-    const fetchPromise = fireExperiment({
-      prompt, knowledgeLayer: kl,
-      nTrials: data.setup.nTrials, injectionMode: mode,
-    })
-
-    async function pollUntilDone() {
-      for (let i = 0; i < 72; i++) {
-        await new Promise(r => setTimeout(r, 5000))
-        try {
-          const r = await getResults()
-          if (r?.control?.length > 0) return r
-          // 404 or empty = still running, keep polling
-        } catch (_) {}
-      }
-      throw new Error('Experiment did not complete within 6 minutes')
-    }
-
     try {
-      const result = await Promise.race([
-        fetchPromise.catch(async () => {
-          // POST failed — switch to polling immediately
-          return pollUntilDone()
-        }),
-        // Also poll in parallel starting after 15s as backup
-        new Promise((resolve, reject) => {
-          setTimeout(async () => {
-            try { resolve(await pollUntilDone()) }
-            catch (e) { reject(e) }
-          }, 15000)
-        }),
-      ])
+      const result = await hookFire({
+        prompt,
+        knowledgeLayer: kl,
+        nTrials: data.setup.nTrials,
+        injectionMode: mode,
+      })
       setData(prev => ({ ...prev, ...result }))
       setRunKey(k => k + 1)
       go(2)
     } catch (err) {
       console.error('Experiment failed:', err)
       alert('Experiment failed: ' + err.message)
-    } finally {
-      setRunning(false)
     }
   }
 

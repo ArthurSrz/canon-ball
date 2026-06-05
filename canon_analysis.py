@@ -149,7 +149,21 @@ def build_trial_labels(trials: list[dict]) -> list[str]:
     return labels
 
 
-def full_analysis(experiment_data: dict) -> dict:
+from typing import TypedDict
+
+
+class AnalysisResult(TypedDict):
+    comparison: dict
+    projection: dict
+    control_dispersion: dict
+    test_dispersion: dict
+    control_pairwise: dict
+    test_pairwise: dict
+    control_labels: list
+    test_labels: list
+
+
+def full_analysis(experiment_data: dict) -> AnalysisResult:
     """Run complete analysis on an experiment."""
     ctrl = experiment_data["control_trials"]
     test = experiment_data["test_trials"]
@@ -157,15 +171,13 @@ def full_analysis(experiment_data: dict) -> dict:
     ctrl_embs = collect_embeddings(ctrl)
     test_embs = collect_embeddings(test)
 
-    results = {
-        "control_dispersion": compute_dispersion(ctrl_embs),
-        "test_dispersion": compute_dispersion(test_embs),
-        "control_pairwise": compute_pairwise_distances(ctrl_embs),
-        "test_pairwise": compute_pairwise_distances(test_embs),
-        "comparison": compare_groups(ctrl, test),
-        "projection": project_2d(ctrl, test),
-        "control_labels": build_trial_labels(ctrl),
-        "test_labels": build_trial_labels(test),
-    }
-
-    return results
+    return AnalysisResult(
+        comparison=compare_groups(ctrl, test),
+        projection=project_2d(ctrl, test),
+        control_dispersion=compute_dispersion(ctrl_embs),
+        test_dispersion=compute_dispersion(test_embs),
+        control_pairwise=compute_pairwise_distances(ctrl_embs),
+        test_pairwise=compute_pairwise_distances(test_embs),
+        control_labels=build_trial_labels(ctrl),
+        test_labels=build_trial_labels(test),
+    )

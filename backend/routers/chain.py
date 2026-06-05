@@ -1,6 +1,7 @@
 """Chain endpoints — attribution tracing and focal line scene building."""
 
 import json
+import threading
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
@@ -11,6 +12,58 @@ import neuronpedia_client as npc
 
 router = APIRouter()
 RESULTS_DIR = Path("results")
+
+_chain_state: dict = {"state": "idle", "step": 0, "total": 0, "error": None}
+_chain_lock = threading.Lock()
+
+
+def _update_chain_state(**kwargs):
+    with _chain_lock:
+        _chain_state.update(kwargs)
+
+
+# Initialize from disk state on module load (handles server restarts)
+if (RESULTS_DIR / "chain_control.json").exists() and (RESULTS_DIR / "chain_test.json").exists():
+    _chain_state.update({"state": "ready", "step": 2, "total": 2})
+
+
+def start_chains_bg(prompt: str, knowledge_layer: str, max_tokens: int = 6):
+    """Called by experiment router after UMAP completes. Runs in background thread."""
+    def _run():
+        _update_chain_state(state="computing", step=0, total=2 * max_tokens, error=None)
+        try:
+            RESULTS_DIR.mkdir(exist_ok=True)
+
+            def make_on_step(chain_idx):
+                def on_step(step_obj):
+                    _update_chain_state(step=chain_idx * max_tokens + step_obj.index + 1)
+                return on_step
+
+            ctrl = bg.compile_attribution(prompt, system_prompt="", max_tokens=max_tokens,
+                                          on_step=make_on_step(0))
+            (RESULTS_DIR / "chain_control.json").write_text(
+                json.dumps(ctrl.to_dict(), indent=2)
+            )
+            _update_chain_state(step=max_tokens)
+
+            test = bg.compile_attribution(prompt, system_prompt=knowledge_layer,
+                                          max_tokens=max_tokens, on_step=make_on_step(1))
+            (RESULTS_DIR / "chain_test.json").write_text(
+                json.dumps(test.to_dict(), indent=2)
+            )
+            _update_chain_state(state="ready", step=2 * max_tokens)
+            print("Borges chains saved.", flush=True)
+        except Exception as e:
+            _update_chain_state(state="failed", error=str(e))
+            print(f"Chain pre-compute failed: {e}", flush=True)
+
+    threading.Thread(target=_run, daemon=True).start()
+
+
+@router.get("/status")
+def get_chain_status():
+    with _chain_lock:
+        return dict(_chain_state)
 
 
 @router.get("/results")
