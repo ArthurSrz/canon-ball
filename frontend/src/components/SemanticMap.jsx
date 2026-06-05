@@ -88,8 +88,10 @@ export default function SemanticMap({
   // data entries have {centroid: {x,y}, chunks: [{x,y}], output}
   // normalize to flat {x,y} for SVG mapping
   function normalize(pt) {
-    if (pt && pt.centroid) return pt.centroid
-    return pt || { x: 0.5, y: 0.5 }
+    // API returns centroid in [0,100]; toSVG expects [0,1]
+    const raw = (pt && pt.centroid) ? pt.centroid : (pt || { x: 50, y: 50 })
+    const scale = raw.x > 1 ? 100 : 1
+    return { x: raw.x / scale, y: raw.y / scale }
   }
 
   const controlShots = useMemo(
