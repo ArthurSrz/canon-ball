@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useTweaks, TweaksPanel, TweakSection, TweakSlider, TweakToggle, TweakColor } from './components/TweaksPanel'
-import { fireExperiment, buildFocal } from './api'
+import { fireExperiment, getResults, buildFocal } from './api'
 import MOCK_DATA from './mockData'
 import ConceptScreen from './screens/ConceptScreen'
 import SetupScreen from './screens/SetupScreen'
@@ -57,19 +57,40 @@ export default function App() {
   }
 
   async function fire() {
-    setRunning(true)
-    try {
-      const promptEl = document.querySelector('.field textarea.input')
-      const klEl = document.querySelector('.field.knowledge textarea.input')
-      const prompt = promptEl?.value || data.setup.prompt
-      const kl = klEl?.value || data.setup.knowledgeLayer
+    setRunning(true)  // overlay shows immediately
+    const promptEl = document.querySelector('.field textarea.input')
+    const klEl = document.querySelector('.field.knowledge textarea.input')
+    const prompt = promptEl?.value || data.setup.prompt
+    const kl = klEl?.value || data.setup.knowledgeLayer
 
-      const result = await fireExperiment({
-        prompt,
-        knowledgeLayer: kl,
-        nTrials: data.setup.nTrials,
-        injectionMode: mode,
-      })
+    // Fire and forget — if connection drops, poll until results appear
+    const fetchPromise = fireExperiment({
+      prompt, knowledgeLayer: kl,
+      nTrials: data.setup.nTrials, injectionMode: mode,
+    })
+
+    async function pollUntilDone() {
+      for (let i = 0; i < 60; i++) {
+        await new Promise(r => setTimeout(r, 5000))
+        try {
+          const r = await getResults()
+          if (r?.control?.length > 0) return r
+        } catch (_) {}
+      }
+      throw new Error('Experiment did not complete within 5 minutes')
+    }
+
+    try {
+      const result = await Promise.race([
+        fetchPromise,
+        // If POST drops, fall back to polling after 10s
+        new Promise((resolve, reject) => {
+          setTimeout(async () => {
+            try { resolve(await pollUntilDone()) }
+            catch (e) { reject(e) }
+          }, 10000)
+        }),
+      ])
       setData(prev => ({ ...prev, ...result }))
       setRunKey(k => k + 1)
       go(2)
