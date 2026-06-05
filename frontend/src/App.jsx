@@ -29,6 +29,77 @@ function hexToRgba(hex, a) {
   return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`
 }
 
+function FiringOverlay({ nTrials, modeName }) {
+  const [frame, setFrame] = useState(0)
+  const [msg, setMsg] = useState(0)
+
+  useEffect(() => {
+    const id = setInterval(() => setFrame(f => f + 1), 80)
+    return () => clearInterval(id)
+  }, [])
+
+  useEffect(() => {
+    const id = setInterval(() => setMsg(m => (m + 1) % MSGS.length), 3000)
+    return () => clearInterval(id)
+  }, [])
+
+  const MSGS = [
+    "Loading the powder…",
+    "Consulting the Library of Babel…",
+    "Tokens incoming…",
+    "The chain is forming…",
+    "Measuring semantic dispersion…",
+    "Almost there — stay calm…",
+    "Gemma is thinking…",
+    "Activating features…",
+  ]
+
+  const angle = (frame * 6) % 360  // wheel spin
+
+  return (
+    <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", zIndex: 20, background: "#fff" }}>
+      <div style={{ textAlign: "center", border: "5px solid #000", background: "#fff", padding: "48px 64px", maxWidth: 480 }}>
+
+        {/* Spinning cannon wheel */}
+        <svg width="80" height="80" viewBox="0 0 80 80" style={{ display: "block", margin: "0 auto 24px" }}>
+          {/* wheel rim */}
+          <circle cx="40" cy="40" r="32" fill="none" stroke="#000" strokeWidth="4" />
+          {/* spokes — rotate */}
+          <g transform={`rotate(${angle} 40 40)`}>
+            {[0,45,90,135].map(a => (
+              <line key={a} x1="40" y1="40"
+                x2={40 + 32 * Math.cos(a * Math.PI / 180)}
+                y2={40 + 32 * Math.sin(a * Math.PI / 180)}
+                stroke="#000" strokeWidth="2.5" />
+            ))}
+          </g>
+          {/* hub */}
+          <circle cx="40" cy="40" r="6" fill="#000" />
+          {/* cannon barrel */}
+          <rect x="48" y="34" width="22" height="12" rx="6" fill="#000" />
+          {/* muzzle flash — blink */}
+          {frame % 8 < 2 && (
+            <circle cx="72" cy="40" r={4 + (frame % 3)} fill="var(--gold)" opacity="0.9" />
+          )}
+          {/* ball in flight */}
+          <circle cx={48 + ((frame * 3) % 30)} cy={40 - ((frame * 3) % 30) * 0.4}
+            r="3" fill="var(--test)" opacity={((frame * 3) % 30) < 20 ? 1 : 0} />
+        </svg>
+
+        <div style={{ fontFamily: "var(--display)", fontSize: 36, textTransform: "uppercase", lineHeight: 1.1 }}>
+          Firing volley…
+        </div>
+        <div className="rail-note" style={{ marginTop: 8, textTransform: "uppercase", letterSpacing: "1px" }}>
+          {nTrials * 2} shots · {modeName}
+        </div>
+        <div style={{ marginTop: 20, fontFamily: "var(--mono)", fontSize: 12, color: "#555", minHeight: 18, transition: "opacity 0.3s" }}>
+          {MSGS[msg]}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function App() {
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS)
   const [step, setStep] = useState(0)
@@ -150,14 +221,7 @@ export default function App() {
         <div className={"screen" + (step === 4 ? " show" : "")}><ModesScreen data={data} go={go} /></div>
         <div className={"screen" + (step === 5 ? " show" : "")}>{step === 5 && <FocalLineScreen data={data} go={go} runKey={runKey} />}</div>
 
-        {running && (
-          <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", zIndex: 20, background: "#fff" }}>
-            <div style={{ textAlign: "center", border: "5px solid #000", background: "#fff", padding: "40px 56px" }}>
-              <div style={{ fontFamily: "var(--display)", fontSize: 44, textTransform: "uppercase" }}>Firing volley…</div>
-              <div className="rail-note" style={{ marginTop: 10, textTransform: "uppercase", letterSpacing: "1px" }}>{data.setup.nTrials * 2} shots · {data.injectionModes.find(m => m.id === mode).name}</div>
-            </div>
-          </div>
-        )}
+        {running && <FiringOverlay nTrials={data.setup.nTrials} modeName={data.injectionModes.find(m => m.id === mode)?.name} />}
       </main>
 
       <TweaksPanel title="Tweaks">
