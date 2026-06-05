@@ -85,13 +85,20 @@ export default function SemanticMap({
   const cycleT = motion ? Math.min(1, (tick % cycleDuration) / cycleDuration) : 1
 
   // build shot arrays with SVG positions
+  // data entries have {centroid: {x,y}, chunks: [{x,y}], output}
+  // normalize to flat {x,y} for SVG mapping
+  function normalize(pt) {
+    if (pt && pt.centroid) return pt.centroid
+    return pt || { x: 0.5, y: 0.5 }
+  }
+
   const controlShots = useMemo(
     () =>
       (data.control || []).map((pt, i) => ({
         ...pt,
         idx: i,
         group: 'control',
-        svg: toSVG(pt),
+        svg: toSVG(normalize(pt)),
       })),
     [data.control],
   )
@@ -102,7 +109,7 @@ export default function SemanticMap({
         ...pt,
         idx: i,
         group: 'test',
-        svg: toSVG(pt),
+        svg: toSVG(normalize(pt)),
       })),
     [data.test],
   )
