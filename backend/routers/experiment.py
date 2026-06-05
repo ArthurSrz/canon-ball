@@ -62,6 +62,31 @@ async def fire_experiment(req: FireRequest):
     return await loop.run_in_executor(None, _run_experiment_sync, req)
 
 
+def _compile_chains_bg(prompt: str, knowledge_layer: str, max_tokens: int = 6):
+    """Pre-compute Borges chains in background after experiment fires."""
+    import threading
+    import borges_graph as bg
+
+    def _run():
+        try:
+            RESULTS_DIR.mkdir(exist_ok=True)
+            # Control chain (no KL)
+            ctrl = bg.compile_attribution(prompt, system_prompt="", max_tokens=max_tokens)
+            (RESULTS_DIR / "chain_control.json").write_text(
+                __import__("json").dumps(ctrl.to_dict(), indent=2)
+            )
+            # Test chain (with KL)
+            test = bg.compile_attribution(prompt, system_prompt=knowledge_layer, max_tokens=max_tokens)
+            (RESULTS_DIR / "chain_test.json").write_text(
+                __import__("json").dumps(test.to_dict(), indent=2)
+            )
+            print("Borges chains saved.", flush=True)
+        except Exception as e:
+            print(f"Chain pre-compute failed: {e}", flush=True)
+
+    threading.Thread(target=_run, daemon=True).start()
+
+
 def _run_experiment_sync(req: FireRequest):
     run = ce.run_experiment(
         prompt=req.prompt,
@@ -70,6 +95,9 @@ def _run_experiment_sync(req: FireRequest):
         injection_mode=req.injection_mode,
     )
     ce.save_experiment(run)
+
+    # Kick off chain computation in background (doesn't block response)
+    _compile_chains_bg(req.prompt, req.knowledge_layer)
 
     experiment_data = ce.load_experiment()
     analysis = ca.full_analysis(experiment_data)

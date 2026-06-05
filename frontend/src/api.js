@@ -26,6 +26,12 @@ export async function traceChain({ prompt, systemPrompt, maxTokens }) {
   return res.json();
 }
 
+export async function getChainResults() {
+  const res = await fetch(`${API_BASE}/api/chain/results`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
 export async function buildFocal({ prompt, knowledgeLayer, maxTokens }) {
   const res = await fetch(`${API_BASE}/api/chain/focal`, {
     method: 'POST',

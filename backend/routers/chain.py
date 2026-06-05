@@ -1,5 +1,8 @@
 """Chain endpoints — attribution tracing and focal line scene building."""
 
+import json
+from pathlib import Path
+
 from fastapi import APIRouter, HTTPException
 
 from backend.schemas import TraceRequest, FocalRequest
@@ -7,6 +10,21 @@ import borges_graph as bg
 import neuronpedia_client as npc
 
 router = APIRouter()
+RESULTS_DIR = Path("results")
+
+
+@router.get("/results")
+def get_chain_results():
+    """Return pre-computed Borges chains (written by experiment fire)."""
+    ctrl_path = RESULTS_DIR / "chain_control.json"
+    test_path = RESULTS_DIR / "chain_test.json"
+
+    if not ctrl_path.exists():
+        raise HTTPException(404, "Chains not yet computed. Fire an experiment first.")
+
+    ctrl = json.loads(ctrl_path.read_text())
+    test = json.loads(test_path.read_text()) if test_path.exists() else None
+    return {"control": ctrl, "test": test}
 
 
 @router.post("/trace")
