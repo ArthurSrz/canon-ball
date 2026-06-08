@@ -53,16 +53,16 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| INTG-01 | Phase 1 | Pending |
-| INTG-02 | Phase 1 | Pending |
-| INTG-03 | Phase 1 | Pending |
-| DIFF-01 | Phase 2 | Pending |
-| DIFF-02 | Phase 2 | Pending |
-| DIFF-03 | Phase 2 | Pending |
-| DIFF-04 | Phase 2 | Pending |
-| CLEN-01 | Phase 3 | Pending |
-| CLEN-02 | Phase 3 | Pending |
-| CLEN-03 | Phase 3 | Pending |
+| INTG-01 | Phase 1 — Chain Data Integrity | Pending |
+| INTG-02 | Phase 1 — Chain Data Integrity | Pending |
+| INTG-03 | Phase 1 — Chain Data Integrity | Pending |
+| DIFF-01 | Phase 2 — Differential Borges Graph | Pending |
+| DIFF-02 | Phase 2 — Differential Borges Graph | Pending |
+| DIFF-03 | Phase 2 — Differential Borges Graph | Pending |
+| DIFF-04 | Phase 2 — Differential Borges Graph | Pending |
+| CLEN-01 | Phase 3 — Cleanup and Deployment Readiness | Pending |
+| CLEN-02 | Phase 3 — Cleanup and Deployment Readiness | Pending |
+| CLEN-03 | Phase 3 — Cleanup and Deployment Readiness | Pending |
 
 **Coverage:**
 - v1 requirements: 10 total
@@ -71,4 +71,4 @@
 
 ---
 *Requirements defined: 2026-06-08*
-*Last updated: 2026-06-08 after initial definition*
+*Last updated: 2026-06-08 after roadmap creation*
