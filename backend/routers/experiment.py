@@ -67,6 +67,8 @@ async def fire_experiment(req: FireRequest):
     RESULTS_DIR.mkdir(exist_ok=True)
     (RESULTS_DIR / "experiment.json").unlink(missing_ok=True)
     (RESULTS_DIR / "analysis.json").unlink(missing_ok=True)
+    from backend.routers.chain import invalidate_chains
+    invalidate_chains()
     loop = asyncio.get_event_loop()
     return await loop.run_in_executor(None, _run_experiment_sync, req, experiment_id)
 

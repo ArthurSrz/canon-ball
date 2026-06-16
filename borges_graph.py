@@ -101,6 +101,82 @@ class CompiledGraph:
         )
 
 
+def _node_key(node: dict) -> tuple:
+    """Composite key for SAE-aligned node matching: (feature, depth, ctx_idx)."""
+    return (node.get("feature"), node.get("depth"), node.get("ctx_idx"))
+
+
+def diff_graphs(control: CompiledGraph, test: CompiledGraph) -> dict:
+    """Diff two compiled attribution graphs by SAE feature key, not list position.
+
+    For each step pair, nodes are joined by (feature, depth, ctx_idx). Each node
+    gets a status: added (test-only), removed (control-only), amplified (influence
+    increased), suppressed (influence decreased), or unchanged.
+
+    Returns {steps: [{step_index, nodes: [{...node, status, delta_influence}]}]}.
+    """
+    results = []
+    max_steps = max(len(control.steps), len(test.steps))
+
+    for i in range(max_steps):
+        ctrl_step = control.steps[i] if i < len(control.steps) else None
+        test_step = test.steps[i] if i < len(test.steps) else None
+
+        ctrl_nodes = {}
+        test_nodes = {}
+
+        if ctrl_step and ctrl_step.subgraph and ctrl_step.subgraph.get("ok"):
+            for n in ctrl_step.subgraph.get("nodes", []):
+                key = _node_key(n)
+                if key != (None, None, None):
+                    ctrl_nodes[key] = n
+
+        if test_step and test_step.subgraph and test_step.subgraph.get("ok"):
+            for n in test_step.subgraph.get("nodes", []):
+                key = _node_key(n)
+                if key != (None, None, None):
+                    test_nodes[key] = n
+
+        all_keys = set(ctrl_nodes.keys()) | set(test_nodes.keys())
+        diff_nodes = []
+
+        for key in all_keys:
+            ctrl_n = ctrl_nodes.get(key)
+            test_n = test_nodes.get(key)
+
+            if ctrl_n and not test_n:
+                diff_nodes.append({
+                    **ctrl_n, "status": "removed", "delta_influence": 0.0,
+                })
+            elif test_n and not ctrl_n:
+                diff_nodes.append({
+                    **test_n, "status": "added", "delta_influence": 0.0,
+                })
+            else:
+                ctrl_inf = ctrl_n.get("influence", 0.0)
+                test_inf = test_n.get("influence", 0.0)
+                delta = test_inf - ctrl_inf
+                threshold = 0.05
+                if delta > threshold:
+                    status = "amplified"
+                elif delta < -threshold:
+                    status = "suppressed"
+                else:
+                    status = "unchanged"
+                diff_nodes.append({
+                    **test_n, "status": status, "delta_influence": round(delta, 4),
+                })
+
+        results.append({
+            "step_index": i,
+            "control_token": ctrl_step.token if ctrl_step else "",
+            "test_token": test_step.token if test_step else "",
+            "nodes": diff_nodes,
+        })
+
+    return {"steps": results}
+
+
 def _sliding_window(text: str, max_tokens: int = WINDOW_SIZE) -> str:
     """Approximate sliding window by keeping the last ~max_tokens words.
     The Circuit Tracer tokenizes internally, so we estimate by whitespace."""
@@ -110,8 +186,19 @@ def _sliding_window(text: str, max_tokens: int = WINDOW_SIZE) -> str:
     return " ".join(words[-max_tokens:])
 
 
+class AttributionLabelError(Exception):
+    """Raised when Circuit Tracer returns a malformed or missing token label."""
+    def __init__(self, reason: str, attrib: dict | None = None):
+        self.reason = reason
+        self.attrib = attrib
+        super().__init__(reason)
+
+
 def _extract_predicted_token(attrib: dict, subgraph: dict | None) -> str:
-    """Extract the top predicted token from the attribution graph's logit nodes."""
+    """Extract the top predicted token from the attribution graph's logit nodes.
+
+    Raises AttributionLabelError instead of silently returning '?'.
+    """
     if subgraph and subgraph.get("ok"):
         logits = [n for n in subgraph.get("nodes", []) if n.get("is_target")]
         if logits:
@@ -123,10 +210,20 @@ def _extract_predicted_token(attrib: dict, subgraph: dict | None) -> str:
             clean = label.replace("Output ", "").split(" (p=")[0].strip().strip('"')
             if clean:
                 return clean
+            raise AttributionLabelError(
+                f"Logit node has unparseable label: {label!r}", attrib
+            )
+        raise AttributionLabelError(
+            "Subgraph has no target logit nodes", attrib
+        )
 
     if attrib.get("ok") and attrib.get("s3url"):
-        return "?"
-    return "?"
+        raise AttributionLabelError(
+            "Attribution graph OK but subgraph fetch failed or empty", attrib
+        )
+    raise AttributionLabelError(
+        f"Attribution graph generation failed: {attrib.get('error', 'unknown')}", attrib
+    )
 
 
 def compile_attribution(
@@ -160,7 +257,18 @@ def compile_attribution(
                 attrib["s3url"], max_nodes=40, max_links=200
             )
 
-        token = _extract_predicted_token(attrib, subgraph)
+        try:
+            token = _extract_predicted_token(attrib, subgraph)
+        except AttributionLabelError as e:
+            step = Step(
+                index=i, token="", context_length=len(context.split()),
+                attribution=attrib, subgraph=subgraph,
+            )
+            step.error = e.reason
+            graph.steps.append(step)
+            if on_step:
+                on_step(step)
+            break
 
         step = Step(
             index=i,
@@ -173,9 +281,6 @@ def compile_attribution(
 
         if on_step:
             on_step(step)
-
-        if token == "?":
-            break
 
         context = context + token
 

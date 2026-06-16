@@ -27,9 +27,18 @@ if (RESULTS_DIR / "chain_control.json").exists() and (RESULTS_DIR / "chain_test.
     _chain_state.update({"state": "ready", "step": 2, "total": 2})
 
 
+def invalidate_chains():
+    """Delete stale chain files so a diff cannot be served from a prior experiment."""
+    RESULTS_DIR.mkdir(exist_ok=True)
+    for f in ("chain_control.json", "chain_test.json"):
+        (RESULTS_DIR / f).unlink(missing_ok=True)
+    _update_chain_state(state="idle", step=0, total=0, error=None)
+
+
 def start_chains_bg(prompt: str, knowledge_layer: str, max_tokens: int = 6):
     """Called by experiment router after UMAP completes. Runs in background thread."""
     def _run():
+        invalidate_chains()
         _update_chain_state(state="computing", step=0, total=2 * max_tokens, error=None)
         try:
             RESULTS_DIR.mkdir(exist_ok=True)
@@ -78,6 +87,20 @@ def get_chain_results():
     ctrl = json.loads(ctrl_path.read_text())
     test = json.loads(test_path.read_text()) if test_path.exists() else None
     return {"control": ctrl, "test": test}
+
+
+@router.get("/diff")
+def get_chain_diff():
+    """Return delta-encoded diff of control vs test attribution chains."""
+    ctrl_path = RESULTS_DIR / "chain_control.json"
+    test_path = RESULTS_DIR / "chain_test.json"
+
+    if not ctrl_path.exists() or not test_path.exists():
+        raise HTTPException(404, "Both chains must be computed before diffing.")
+
+    ctrl = bg.CompiledGraph.from_dict(json.loads(ctrl_path.read_text()))
+    test = bg.CompiledGraph.from_dict(json.loads(test_path.read_text()))
+    return bg.diff_graphs(ctrl, test)
 
 
 @router.post("/trace")
