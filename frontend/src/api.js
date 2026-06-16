@@ -10,8 +10,9 @@ export async function fireExperiment({ prompt, knowledgeLayer, nTrials, injectio
   return res.json();
 }
 
-export async function getResults() {
-  const res = await fetch(`${API_BASE}/api/experiment/results`);
+export async function getResults(experimentId) {
+  const params = experimentId ? `?experiment_id=${experimentId}` : '';
+  const res = await fetch(`${API_BASE}/api/experiment/results${params}`);
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }

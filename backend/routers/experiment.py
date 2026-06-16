@@ -2,6 +2,7 @@
 
 import json
 import threading
+import uuid
 from pathlib import Path
 
 import numpy as np
@@ -62,8 +63,12 @@ def _normalize_projection(projection: dict, trials_ctrl: list[dict], trials_test
 @router.post("/fire")
 async def fire_experiment(req: FireRequest):
     import asyncio
+    experiment_id = str(uuid.uuid4())
+    RESULTS_DIR.mkdir(exist_ok=True)
+    (RESULTS_DIR / "experiment.json").unlink(missing_ok=True)
+    (RESULTS_DIR / "analysis.json").unlink(missing_ok=True)
     loop = asyncio.get_event_loop()
-    return await loop.run_in_executor(None, _run_experiment_sync, req)
+    return await loop.run_in_executor(None, _run_experiment_sync, req, experiment_id)
 
 
 def _build_response(experiment_data: dict, analysis: dict) -> dict:
@@ -101,7 +106,7 @@ def _build_response(experiment_data: dict, analysis: dict) -> dict:
 
 
 
-def _run_experiment_sync(req: FireRequest):
+def _run_experiment_sync(req: FireRequest, experiment_id: str):
     run = ce.run_experiment(
         prompt=req.prompt,
         knowledge_layer=req.knowledge_layer,
@@ -110,25 +115,31 @@ def _run_experiment_sync(req: FireRequest):
     )
     ce.save_experiment(run)
 
+    exp_path = RESULTS_DIR / "experiment.json"
+    data = json.loads(exp_path.read_text())
+    data["experiment_id"] = experiment_id
+    exp_path.write_text(json.dumps(data, default=float))
+
     experiment_data = ce.load_experiment()
+    experiment_data["experiment_id"] = experiment_id
     with _umap_lock:
         analysis = ca.full_analysis(experiment_data)
 
-    # Save analysis to disk so GET /results never needs to recompute UMAP
     RESULTS_DIR.mkdir(exist_ok=True)
     (RESULTS_DIR / "analysis.json").write_text(
         __import__("json").dumps(analysis, default=float)
     )
 
-    # Kick off chain computation AFTER UMAP finishes (avoids Numba thread conflict)
     from backend.routers.chain import start_chains_bg
     start_chains_bg(req.prompt, req.knowledge_layer)
 
-    return _build_response(experiment_data, analysis)
+    resp = _build_response(experiment_data, analysis)
+    resp["experimentId"] = experiment_id
+    return resp
 
 
 @router.get("/results")
-def get_results():
+def get_results(experiment_id: str | None = None):
     exp_path = RESULTS_DIR / "experiment.json"
     analysis_path = RESULTS_DIR / "analysis.json"
     if not exp_path.exists():
@@ -137,6 +148,10 @@ def get_results():
         raise HTTPException(404, "Analysis not ready yet. Still computing.")
 
     experiment_data = ce.load_experiment(str(exp_path))
-    analysis = json.loads(analysis_path.read_text())
+    if experiment_id and experiment_data.get("experiment_id") != experiment_id:
+        raise HTTPException(404, "Requested experiment not ready yet.")
 
-    return _build_response(experiment_data, analysis)
+    analysis = json.loads(analysis_path.read_text())
+    resp = _build_response(experiment_data, analysis)
+    resp["experimentId"] = experiment_data.get("experiment_id")
+    return resp
