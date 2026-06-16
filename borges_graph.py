@@ -33,7 +33,7 @@ from typing import Callable
 import neuronpedia_client as npc
 
 
-WINDOW_SIZE = 60
+WINDOW_SIZE = 48
 
 
 @dataclass
