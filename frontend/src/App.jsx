@@ -50,9 +50,18 @@ function FiringOverlay({ nTrials, modeName }) {
     "Tokens incoming…",
     "The chain is forming…",
     "Measuring semantic dispersion…",
-    "Almost there — stay calm…",
-    "Gemma is thinking…",
+    "Gemma is thinking… she'll get back to you.",
     "Activating features…",
+    "Politely asking 384 dimensions to flatten into 2…",
+    "The model is stalling. Classic LLM move.",
+    "Still faster than peer review.",
+    "If you stare at the wheel, it spins faster. (It doesn't.)",
+    "Embeddings are embedding. Tokens are tokenizing.",
+    "Running Mann-Whitney U. He's a slow runner.",
+    "Somewhere, a GPU is warm because of you.",
+    "UMAP is doing its best. It's a nonlinear world.",
+    "The knowledge layer is negotiating with the attention heads.",
+    "Borges would have waited. So can you.",
   ]
 
   const angle = (frame * 6) % 360  // wheel spin
