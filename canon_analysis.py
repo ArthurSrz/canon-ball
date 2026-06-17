@@ -5,8 +5,7 @@ between control (no knowledge layer) and test (with knowledge layer) trials.
 """
 
 import numpy as np
-from sklearn.metrics.pairwise import cosine_distances, euclidean_distances
-from scipy.spatial.distance import cdist
+from sklearn.metrics.pairwise import cosine_distances
 from scipy.stats import mannwhitneyu
 import umap
 
