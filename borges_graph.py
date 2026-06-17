@@ -106,75 +106,71 @@ def _node_key(node: dict) -> tuple:
     return (node.get("feature"), node.get("depth"), node.get("ctx_idx"))
 
 
-def diff_graphs(control: CompiledGraph, test: CompiledGraph) -> dict:
-    """Diff two compiled attribution graphs by SAE feature key, not list position.
+def _diff_subgraphs(ctrl_subgraph: dict | None, test_subgraph: dict | None) -> list[dict]:
+    """Diff two subgraphs by SAE feature key. Returns list of nodes with status + delta."""
+    ctrl_nodes = {}
+    test_nodes = {}
 
-    For each step pair, nodes are joined by (feature, depth, ctx_idx). Each node
-    gets a status: added (test-only), removed (control-only), amplified (influence
-    increased), suppressed (influence decreased), or unchanged.
+    if ctrl_subgraph and ctrl_subgraph.get("ok"):
+        for n in ctrl_subgraph.get("nodes", []):
+            key = _node_key(n)
+            if key != (None, None, None):
+                ctrl_nodes[key] = n
 
-    Returns {steps: [{step_index, nodes: [{...node, status, delta_influence}]}]}.
-    """
-    results = []
-    max_steps = max(len(control.steps), len(test.steps))
+    if test_subgraph and test_subgraph.get("ok"):
+        for n in test_subgraph.get("nodes", []):
+            key = _node_key(n)
+            if key != (None, None, None):
+                test_nodes[key] = n
 
-    for i in range(max_steps):
-        ctrl_step = control.steps[i] if i < len(control.steps) else None
-        test_step = test.steps[i] if i < len(test.steps) else None
+    diff_nodes = []
+    for key in set(ctrl_nodes.keys()) | set(test_nodes.keys()):
+        ctrl_n = ctrl_nodes.get(key)
+        test_n = test_nodes.get(key)
 
-        ctrl_nodes = {}
-        test_nodes = {}
-
-        if ctrl_step and ctrl_step.subgraph and ctrl_step.subgraph.get("ok"):
-            for n in ctrl_step.subgraph.get("nodes", []):
-                key = _node_key(n)
-                if key != (None, None, None):
-                    ctrl_nodes[key] = n
-
-        if test_step and test_step.subgraph and test_step.subgraph.get("ok"):
-            for n in test_step.subgraph.get("nodes", []):
-                key = _node_key(n)
-                if key != (None, None, None):
-                    test_nodes[key] = n
-
-        all_keys = set(ctrl_nodes.keys()) | set(test_nodes.keys())
-        diff_nodes = []
-
-        for key in all_keys:
-            ctrl_n = ctrl_nodes.get(key)
-            test_n = test_nodes.get(key)
-
-            if ctrl_n and not test_n:
-                diff_nodes.append({
-                    **ctrl_n, "status": "removed", "delta_influence": 0.0,
-                })
-            elif test_n and not ctrl_n:
-                diff_nodes.append({
-                    **test_n, "status": "added", "delta_influence": 0.0,
-                })
+        if ctrl_n and not test_n:
+            diff_nodes.append({**ctrl_n, "status": "removed", "delta_influence": 0.0})
+        elif test_n and not ctrl_n:
+            diff_nodes.append({**test_n, "status": "added", "delta_influence": 0.0})
+        else:
+            ctrl_inf = ctrl_n.get("influence", 0.0)
+            test_inf = test_n.get("influence", 0.0)
+            delta = test_inf - ctrl_inf
+            threshold = 0.05
+            if delta > threshold:
+                status = "amplified"
+            elif delta < -threshold:
+                status = "suppressed"
             else:
-                ctrl_inf = ctrl_n.get("influence", 0.0)
-                test_inf = test_n.get("influence", 0.0)
-                delta = test_inf - ctrl_inf
-                threshold = 0.05
-                if delta > threshold:
-                    status = "amplified"
-                elif delta < -threshold:
-                    status = "suppressed"
-                else:
-                    status = "unchanged"
-                diff_nodes.append({
-                    **test_n, "status": status, "delta_influence": round(delta, 4),
-                })
+                status = "unchanged"
+            diff_nodes.append({**test_n, "status": status, "delta_influence": round(delta, 4)})
 
-        results.append({
-            "step_index": i,
-            "control_token": ctrl_step.token if ctrl_step else "",
-            "test_token": test_step.token if test_step else "",
-            "nodes": diff_nodes,
-        })
+    return diff_nodes
 
-    return {"steps": results}
+
+def diff_graphs(control: CompiledGraph, test: CompiledGraph) -> dict:
+    """Diff step 0 of two compiled attribution graphs by SAE feature key.
+
+    Only step 0 is meaningful: both chains see the same prompt (± knowledge layer)
+    before autoregressive generation diverges their contexts. Comparing later steps
+    would be incoherent since each chain generates different tokens.
+
+    Returns {prompt, control_token, test_token, nodes: [{...node, status, delta_influence}]}.
+    """
+    ctrl_step = control.steps[0] if control.steps else None
+    test_step = test.steps[0] if test.steps else None
+
+    nodes = _diff_subgraphs(
+        ctrl_step.subgraph if ctrl_step else None,
+        test_step.subgraph if test_step else None,
+    )
+
+    return {
+        "prompt": control.prompt,
+        "control_token": ctrl_step.token if ctrl_step else "",
+        "test_token": test_step.token if test_step else "",
+        "nodes": nodes,
+    }
 
 
 def _sliding_window(text: str, max_tokens: int = WINDOW_SIZE) -> str:
