@@ -47,6 +47,6 @@ Canon Ball is a brownfield project with a narrow, well-defined gap. The experime
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Chain Data Integrity | 0/? | Not started | - |
+| 1. Chain Data Integrity | 3/3 | Complete | 2026-06-16 |
 | 2. Differential Borges Graph | 0/? | Not started | - |
-| 3. Cleanup and Deployment Readiness | 0/? | Not started | - |
+| 3. Cleanup and Deployment Readiness | 1/3 | In progress | - |

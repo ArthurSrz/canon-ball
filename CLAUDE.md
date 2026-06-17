@@ -45,9 +45,6 @@ Set API keys in `.env` (see `.env.example`):
 - **`canon_analysis.py`** — UMAP projection, dispersion metrics, Mann-Whitney U.
 - **`neuronpedia_client.py`** — NLA + Circuit Tracer client. Batched explain (16 positions/request cap), attribution graph generation + pruning.
 
-### Legacy (Streamlit — still present, will be removed)
-- `app.py`, `pages/`, `shared_sidebar.py`, `html_components.py`
-
 ## Key design details
 
 - **Chain-centric**: The Borges chain is THE central artifact. Dispersion measures the WHAT, chain shows the WHY.
@@ -58,6 +55,9 @@ Set API keys in `.env` (see `.env.example`):
 - NLA explain endpoint caps at 16 new token positions per request; the client batches automatically.
 - Circuit Tracer: gemma-2-2b only, 64-token prompt cap. Sliding window when context exceeds cap.
 - `fetch_attribution_subgraph` preserves the `feature` field (SAE dictionary index) for future steering.
+- **Experiment identity**: `POST /fire` generates a UUID, deletes stale result files immediately, and stamps the ID in `experiment.json`. `GET /results` accepts an optional `experiment_id` query param and returns 404 if it doesn't match. This prevents the polling fallback from returning a previous experiment's results.
+- **Result file lifecycle**: `results/experiment.json` and `results/analysis.json` are deleted at the START of each new experiment. They are only written back after all trials + UMAP complete. During that window, `GET /results` returns 404, which the frontend polling handles gracefully.
+- **HuggingFace backend flattens message structure**: `_chat_hf()` in `canon_experiment.py` folds system messages into user role (featherless-ai doesn't support system prompts). This makes injection modes structurally identical when `HF_API_KEY` is set. OpenRouter preserves message structure correctly — prefer it for experiments comparing injection modes.
 
 <!-- GSD:project-start source:PROJECT.md -->
 ## Project
