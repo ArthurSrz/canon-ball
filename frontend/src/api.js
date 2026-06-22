@@ -39,6 +39,12 @@ export async function getChainStatus() {
   return res.json()
 }
 
+export async function getChainDiff() {
+  const res = await fetch(`${API_BASE}/api/chain/diff`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
 export async function buildFocal({ prompt, knowledgeLayer, maxTokens }) {
   const res = await fetch(`${API_BASE}/api/chain/focal`, {
     method: 'POST',
