@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react'
-import { getChainResults, getChainStatus } from '../api'
+import { getChainResults, getChainStatus, getChainDiff } from '../api'
 
 /* ─── Borges Graph component ──────────────────────────────────────────────── */
 
@@ -162,10 +162,114 @@ function DominanceBar({ graph, color }) {
   )
 }
 
+/* ─── Differential graph — control vs test, step 0 ────────────────────────── */
+
+const STATUS_STYLE = {
+  added:      { color: 'var(--gold)',    fill: 'var(--gold)', label: 'recruited by KL' },
+  removed:    { color: 'var(--control)', fill: 'none',        label: 'dropped under KL' },
+  amplified:  { color: 'var(--gold)',    fill: 'none',        label: 'amplified' },
+  suppressed: { color: 'var(--test)',    fill: 'none',        label: 'suppressed' },
+  unchanged:  { color: '#ccc',           fill: 'none',        label: 'unchanged' },
+}
+const STATUS_ORDER = ['added', 'removed', 'amplified', 'suppressed', 'unchanged']
+
+function DiffGraph({ diff }) {
+  const [hovered, setHovered] = useState(null)
+
+  const { nodes, counts, maxDepth, maxCtx } = useMemo(() => {
+    const all = diff?.nodes || []
+    const feats = all.filter(n => n.type === 'cross layer transcoder' || n.feature != null)
+    const maxDepth = Math.max(1, ...feats.map(n => n.depth || 0))
+    const maxCtx = Math.max(1, ...feats.map(n => n.ctx_idx || 0))
+    const counts = {}
+    STATUS_ORDER.forEach(s => { counts[s] = 0 })
+    feats.forEach(n => { counts[n.status] = (counts[n.status] || 0) + 1 })
+    return { nodes: feats, counts, maxDepth, maxCtx }
+  }, [diff])
+
+  if (!nodes.length) return null
+
+  const cx = d => PAD.l + (d / Math.max(maxDepth, 1)) * (W - PAD.l - PAD.r)
+  const cy = c => PAD.t + (c / Math.max(maxCtx, 1)) * (H - PAD.t - PAD.b)
+
+  // Draw faded/unchanged first, salient (added/removed) on top.
+  const drawOrder = [...nodes].sort(
+    (a, b) => STATUS_ORDER.indexOf(b.status) - STATUS_ORDER.indexOf(a.status)
+  )
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+        <span style={{ fontFamily: 'var(--display)', fontSize: 13, textTransform: 'uppercase', letterSpacing: 1 }}>
+          Differential — step 0
+        </span>
+        <div style={{ flex: 1 }} />
+        <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: '#777' }}>
+          control <strong style={{ color: 'var(--control)' }}>&ldquo;{diff.control_token}&rdquo;</strong>
+          {' '}vs test <strong style={{ color: 'var(--gold)' }}>&ldquo;{diff.test_token}&rdquo;</strong>
+        </span>
+      </div>
+
+      <div className="graph-wrap">
+        <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: 'block' }}>
+          <text x={PAD.l} y={PAD.t - 10} fontFamily="var(--mono)" fontSize="9" fill="#aaa" letterSpacing="1">LAYER DEPTH →</text>
+          <text x={12} y={H / 2} fontFamily="var(--mono)" fontSize="9" fill="#aaa" textAnchor="middle"
+            transform={`rotate(-90 12 ${H / 2})`}>CTX POS</text>
+
+          {[0, 0.25, 0.5, 0.75, 1].map(t => (
+            <line key={t} x1={cx(t * maxDepth)} y1={PAD.t} x2={cx(t * maxDepth)} y2={H - PAD.b}
+              stroke="#e4e4e4" strokeWidth="1" />
+          ))}
+
+          {drawOrder.map((n, i) => {
+            const s = STATUS_STYLE[n.status] || STATUS_STYLE.unchanged
+            const salient = n.status === 'added' || n.status === 'removed'
+            const r = Math.min(11, Math.max(3, Math.sqrt(Math.abs(n.influence || 0.3)) * 6))
+            const isHov = hovered === i
+            return (
+              <g key={i} onMouseEnter={() => setHovered(i)} onMouseLeave={() => setHovered(null)}>
+                <circle cx={cx(n.depth)} cy={cy(n.ctx_idx)} r={r + 4} fill="transparent" />
+                <circle cx={cx(n.depth)} cy={cy(n.ctx_idx)} r={r}
+                  fill={s.fill} stroke={s.color}
+                  strokeWidth={salient ? 2 : 1}
+                  opacity={salient ? 0.95 : 0.3} />
+                {isHov && (
+                  <text x={cx(n.depth)} y={cy(n.ctx_idx) - r - 5}
+                    fontFamily="var(--mono)" fontSize="8" fill={s.color} textAnchor="middle">
+                    {(n.label ? n.label.slice(0, 22) : `L${n.depth} ctx${n.ctx_idx}`)} · {n.status}
+                  </text>
+                )}
+              </g>
+            )
+          })}
+        </svg>
+      </div>
+
+      {/* legend with live counts */}
+      <div className="chiprow" style={{ marginTop: 10, flexWrap: 'wrap', gap: 8 }}>
+        {STATUS_ORDER.filter(s => counts[s] > 0).map(s => {
+          const st = STATUS_STYLE[s]
+          return (
+            <span key={s} className="chip" style={{ color: st.color, borderColor: st.color, fontSize: 10 }}>
+              <span style={{
+                display: 'inline-block', width: 8, height: 8, borderRadius: '50%',
+                background: st.fill === 'none' ? 'transparent' : st.color,
+                border: `1.5px solid ${st.color}`, marginRight: 6, verticalAlign: 'middle',
+              }} />
+              {st.label} · {counts[s]}
+            </span>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 /* ─── FocalLineScreen ─────────────────────────────────────────────────────── */
 
 export default function FocalLineScreen({ data, go }) {
   const [chains, setChains] = useState(null)
+  const [diff, setDiff] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [chainStatus, setChainStatus] = useState(null)
@@ -182,6 +286,8 @@ export default function FocalLineScreen({ data, go }) {
         if (status.state === 'ready') {
           const result = await getChainResults()
           setChains(result)
+          // Differential is best-effort: both chains must be on disk. Never blocks the main view.
+          try { setDiff(await getChainDiff()) } catch (_) { setDiff(null) }
           setLoading(false)
           clearInterval(interval)
         } else if (status.state === 'failed') {
@@ -195,6 +301,7 @@ export default function FocalLineScreen({ data, go }) {
         try {
           const result = await getChainResults()
           setChains(result)
+          try { setDiff(await getChainDiff()) } catch (_) { setDiff(null) }
           setLoading(false)
           clearInterval(interval)
         } catch (_) {}
@@ -264,6 +371,19 @@ export default function FocalLineScreen({ data, go }) {
               <DominanceBar graph={chains.test} color="var(--gold)" />
             </div>
           </div>
+
+          {diff && (
+            <div className="panel" style={{ borderColor: 'var(--gold)', borderStyle: 'dashed', marginBottom: 24 }}>
+              <DiffGraph diff={diff} />
+              <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: '#999', marginTop: 10, lineHeight: 1.5 }}>
+                Step 0 only — the single token where both chains share input context.
+                <strong style={{ color: 'var(--gold)' }}> Recruited</strong> features are circuits the
+                knowledge layer switched on that the control never used; <strong>dropped</strong> ones it
+                switched off. The knowledge layer's fingerprint is which circuits it recruits, not how it
+                reweights shared ones.
+              </div>
+            </div>
+          )}
 
           <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: '#999', margin: '4px 0 16px', borderLeft: '3px solid #e4e4e4', paddingLeft: 12, lineHeight: 1.6 }}>
             The chains above trace <strong>gemma-2-2b</strong> via Neuronpedia Circuit Tracer —
