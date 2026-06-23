@@ -357,6 +357,80 @@ textarea.input, input.input {
 .fu { opacity: 0; animation: fu .35s forwards; }
 @keyframes fu { to { opacity: 1; } }
 
+/* ---- metrics screen (3 measurement cards) ---- */
+.metrics-row {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 8px;
+}
+.metric-card {
+  background: #FFFFFF; border: 5px solid #000; border-radius: 0;
+  padding: 24px 22px 22px; display: flex; flex-direction: column;
+  position: relative; overflow: hidden;
+}
+.metric-card::before {
+  content: ""; position: absolute; top: 0; left: 0; right: 0; height: 8px; background: #000;
+}
+.metric-value {
+  font-family: var(--display); font-size: clamp(34px, 4vw, 48px);
+  line-height: 1; letter-spacing: -2px; color: #000; margin: 6px 0 0;
+}
+.metric-label {
+  font-family: var(--mono); font-size: 11px; letter-spacing: 1.4px;
+  text-transform: uppercase; color: #777; margin-top: 14px;
+}
+.metric-desc {
+  font-size: 13.5px; line-height: 1.55; color: #1a1a1a; margin: 12px 0 18px; flex: 1;
+}
+.metric-desc strong { color: #000; font-weight: 700; }
+.metric-bar {
+  height: 12px; background: #E4E4E4; border: 2px solid #000;
+  border-radius: 0; overflow: hidden;
+}
+.metric-bar-fill {
+  height: 100%; width: 0; background: #000;
+  transition: width .9s cubic-bezier(.2,.7,.2,1);
+}
+.metric-bar-fill.focusing    { background: var(--test); }
+.metric-bar-fill.steering    { background: var(--gold); }
+.metric-bar-fill.significant { background: var(--test); }
+.metric-sub {
+  font-family: var(--mono); font-size: 11px; letter-spacing: .5px;
+  color: #333; margin-top: 9px;
+}
+
+/* ---- modes screen (ranked comparison table) ---- */
+.modes-table { border: 3px solid #000; margin-top: 8px; }
+.modes-header, .modes-row {
+  display: grid;
+  grid-template-columns: 34px 60px minmax(150px, 1.7fr) 0.8fr 1fr 0.8fr 0.9fr;
+  align-items: center; gap: 14px; padding: 14px 18px;
+}
+.modes-header {
+  background: #000; color: #fff;
+  font-family: var(--mono); font-size: 10px; letter-spacing: 1.2px; text-transform: uppercase;
+}
+.modes-row {
+  border-top: 3px solid #000; background: #fff;
+  transition: background .12s;
+}
+.modes-row:hover { background: #F0F0F0; }
+.modes-best { background: #FFF6E8; }
+.modes-best:hover { background: #FFEFD6; }
+.modes-best .modes-rank { color: var(--gold); }
+.modes-ns { opacity: .55; }
+.modes-num { text-align: right; justify-self: end; }
+.modes-header .modes-num { justify-self: end; }
+.modes-rank { font-family: var(--mono); font-size: 14px; font-weight: 700; }
+.modes-viz { display: flex; align-items: center; }
+.modes-mode-name {
+  font-size: 15px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px;
+}
+.modes-mode-how {
+  font-family: var(--mono); font-size: 10.5px; color: #777; margin-top: 3px; line-height: 1.4;
+}
+.modes-big { font-family: var(--mono); font-size: 14px; font-weight: 700; }
+.modes-sig { color: var(--test); }
+.modes-nonsig { color: #777; font-weight: 400; }
+
 /* ====================== Responsive / mobile ====================== */
 /* The rail can't simply be hidden — it's the only navigation. On narrow
    viewports the shell stacks and the rail becomes a horizontal top bar
@@ -403,7 +477,12 @@ textarea.input, input.input {
   .screen-inner { padding: 32px 18px 72px; }
   .two-col { grid-template-columns: 1fr !important; gap: 24px !important; }
   .metric-grid { grid-template-columns: 1fr !important; }
+  .metrics-row { grid-template-columns: 1fr; gap: 16px; }
   .modepick { grid-template-columns: 1fr; }
+
+  /* Dense ranked table scrolls sideways rather than crushing its columns */
+  .modes-table { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .modes-header, .modes-row { min-width: 560px; }
 
   /* Dial headings back so they don't overflow narrow screens */
   h1.display { font-size: clamp(30px, 8vw, 44px); }
