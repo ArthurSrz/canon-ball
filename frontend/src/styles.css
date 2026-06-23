@@ -357,10 +357,69 @@ textarea.input, input.input {
 .fu { opacity: 0; animation: fu .35s forwards; }
 @keyframes fu { to { opacity: 1; } }
 
+/* ====================== Responsive / mobile ====================== */
+/* The rail can't simply be hidden — it's the only navigation. On narrow
+   viewports the shell stacks and the rail becomes a horizontal top bar
+   whose steps scroll sideways. Inline grid-template-columns set on screens
+   override the stylesheet, so the column collapses use !important. */
 @media (max-width: 880px) {
-  .app { grid-template-columns: 1fr; }
-  .rail { display: none; }
-  .screen-inner { padding: 40px 24px 80px; }
-  .two-col { grid-template-columns: 1fr; }
-  .metric-grid { grid-template-columns: 1fr; }
+  .app {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  /* Rail → top bar */
+  .rail {
+    border-right: none;
+    border-bottom: 5px solid #000;
+    padding: 12px 16px;
+    overflow: visible;
+    gap: 0;
+  }
+  .brand { margin-bottom: 10px; }
+  .brand-mark { width: 34px; height: 34px; }
+  .brand-name { font-size: 20px; }
+  .brand-sub { display: none; }
+  .rail-divider, .rail-foot { display: none; }
+
+  /* Steps scroll horizontally instead of stacking */
+  .steps {
+    flex-direction: row;
+    overflow-x: auto;
+    gap: 6px;
+    margin-top: 0;
+    padding-bottom: 4px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .steps::-webkit-scrollbar { display: none; }
+  .step-btn {
+    flex: 0 0 auto; width: auto; white-space: nowrap;
+    padding: 8px 11px; font-size: 11px; border-width: 2px; gap: 9px;
+  }
+  .step-num { width: 22px; height: 22px; border-width: 2px; }
+
+  /* Collapse multi-column layouts (inline styles → need !important) */
+  .screen-inner { padding: 32px 18px 72px; }
+  .two-col { grid-template-columns: 1fr !important; gap: 24px !important; }
+  .metric-grid { grid-template-columns: 1fr !important; }
+  .modepick { grid-template-columns: 1fr; }
+
+  /* Dial headings back so they don't overflow narrow screens */
+  h1.display { font-size: clamp(30px, 8vw, 44px); }
+  h2.display { font-size: clamp(24px, 6.5vw, 36px); }
+  .bignum { font-size: clamp(56px, 18vw, 96px); }
+
+  /* Let nav buttons wrap rather than overflow */
+  .nav-row { flex-wrap: wrap; gap: 12px; margin-top: 32px; }
+  .btn { padding: 11px 18px; letter-spacing: 1px; }
 }
+
+@media (max-width: 480px) {
+  .screen-inner { padding: 24px 14px 60px; }
+  .panel { padding: 16px; }
+  .lede { font-size: 16px; }
+  .metric .m-value { font-size: 44px; }
+  .nav-row .btn { flex: 1 1 auto; justify-content: center; }
+}
+
