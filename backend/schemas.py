@@ -8,7 +8,7 @@ class FireRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
     prompt: str
     knowledge_layer: str
-    n_trials: int = 8
+    n_trials: int = 16
     injection_mode: str = "template"
 
 
