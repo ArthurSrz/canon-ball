@@ -49,7 +49,7 @@
 }
 
 * { box-sizing: border-box; }
-html, body { margin: 0; padding: 0; }
+html, body { margin: 0; padding: 0; max-width: 100%; overflow-x: hidden; }
 
 body {
   background: #FFFFFF;
@@ -438,7 +438,7 @@ textarea.input, input.input {
    override the stylesheet, so the column collapses use !important. */
 @media (max-width: 880px) {
   .app {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto minmax(0, 1fr);
   }
 
@@ -474,8 +474,11 @@ textarea.input, input.input {
   .step-num { width: 22px; height: 22px; border-width: 2px; }
 
   /* Collapse multi-column layouts (inline styles → need !important) */
+  /* min-width:0 lets the stage/screen shrink below their content's intrinsic
+     width (viewBox SVGs) so the grid track can't push past the viewport. */
+  .stage, .screen, .screen-inner { min-width: 0; }
   .screen { overflow-x: hidden; }
-  .screen-inner { padding: 32px 18px 72px; }
+  .screen-inner { padding: 32px 18px 72px; max-width: 100%; }
   .two-col { grid-template-columns: 1fr !important; gap: 24px !important; }
   /* Grid/flex children default to min-width:auto, so a child with an intrinsic
      width (the viewBox-sized SVGs) would stretch the column past the viewport.
