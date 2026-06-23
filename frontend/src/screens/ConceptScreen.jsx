@@ -10,15 +10,21 @@ export default function ConceptScreen({ playful, go, motion }) {
             What do <em>knowledge layers</em> do<br />to language models?
           </h1>
           <p className="lede fu" style={{ animationDelay: ".2s" }}>
-            This is an instrument for one question: <strong>what do knowledge layers
-            actually do to language models?</strong> Ask a model the same thing many times
-            and its answers scatter across a field of meaning. Add knowledge and the scatter
-            changes — it <span className="test-word">tightens</span> and it
-            <span style={{ color: "var(--gold)" }}> shifts</span>, as if passed through a
-            <em> focal line</em>. We measure that change — so the effect of knowledge stops
-            being a hand-wave and becomes a number.
+            Picture a cannon. Load it with a prompt, light the charge, and the model's
+            answer lands somewhere in a wide field of meaning. Fire again — another shot,
+            another landing. Ask the same thing a hundred times and the shots
+            <strong> scatter</strong>: the model means a hundred slightly different things.
           </p>
-          <div className="nav-row fu" style={{ animationDelay: ".46s" }}>
+          <p className="lede fu" style={{ animationDelay: ".32s" }}>
+            Now pack a <span style={{ color: "var(--gold)" }}>knowledge layer</span> behind
+            the powder and fire the same volley. The shots fall tighter, and somewhere new —
+            the scatter <span className="test-word">tightens</span> and
+            <span style={{ color: "var(--gold)" }}> shifts</span>, as if the barrel were
+            rifled, as if every answer passed through a <em>focal line</em>.
+            <strong> Canon&nbsp;Ball</strong> measures that change — so what knowledge does to
+            a model stops being a hand-wave and becomes a number.
+          </p>
+          <div className="nav-row fu" style={{ animationDelay: ".5s" }}>
             <button className="btn btn-primary" onClick={() => go(1)}>
               Set up an experiment
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>

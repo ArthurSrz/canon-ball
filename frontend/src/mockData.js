@@ -23,7 +23,7 @@ const MOCK_DATA = (function () {
     return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
   }
 
-  const N = 8;             // trials per group
+  const N = 16;            // trials per group (16 control + 16 test = 32 shots)
   const CHUNKS = 5;         // semantic chunks per trial
 
   // Landing field is a normalized square [0..100] in each axis.
