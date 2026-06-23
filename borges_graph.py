@@ -21,6 +21,7 @@ of *why* each token was chosen.
 
 Model constraints:
     - Circuit Tracer: gemma-2-2b only, 64-token prompt cap, rate limit 30/hr
+      (a token-accurate gliding window keeps the context within that cap — see _sliding_window)
     - NLA verbalization runs on different models (gemma-3-27b, llama-3.3-70b) — not used here
     - Feature identifiers (SAE dictionary indices) are preserved for future steering
 """
@@ -33,7 +34,14 @@ from typing import Callable
 import neuronpedia_client as npc
 
 
-WINDOW_SIZE = 48
+# Circuit Tracer prompt budget. gemma-2-2b caps the prompt at 64 tokens (a hard API
+# limit; troubleshooting.md). We slide a token-accurate window over the context so that
+# knowledge + prompt + generated output fit until the budget is reached, then the oldest
+# (front) text glides off. No local tokenizer is available, so we estimate tokens from
+# characters — robust to output tokens being concatenated without spaces (see the loop).
+MAX_PROMPT_TOKENS = 64       # gemma-2-2b Circuit Tracer hard cap
+PROMPT_TOKEN_BUDGET = 60     # usable budget; ~4 tokens headroom for server BOS/template tokens
+CHARS_PER_TOKEN = 4          # ~chars per token for English gemma tokenization (approximate)
 
 # Diff classification: a shared feature is amplified/suppressed by *relative* change in
 # influence (scale-invariant), not an absolute delta. Control influences below the floor
@@ -202,13 +210,23 @@ def diff_graphs(control: CompiledGraph, test: CompiledGraph) -> dict:
     }
 
 
-def _sliding_window(text: str, max_tokens: int = WINDOW_SIZE) -> str:
-    """Approximate sliding window by keeping the last ~max_tokens words.
-    The Circuit Tracer tokenizes internally, so we estimate by whitespace."""
-    words = text.split()
-    if len(words) <= max_tokens:
+def _sliding_window(text: str, budget_tokens: int = PROMPT_TOKEN_BUDGET) -> str:
+    """Token-accurate gliding window for the Circuit Tracer's 64-token prompt cap.
+
+    Keeps the most-recent ~budget_tokens of text (prompt tail + generated suffix + as much
+    knowledge as fits). As output tokens are appended each step, the oldest front text glides
+    off. Token count is estimated from characters (no local tokenizer; the Tracer tokenizes
+    internally). The kept slice is snapped forward to the next word boundary so the window never
+    begins mid-word, which would corrupt the leading token."""
+    char_budget = budget_tokens * CHARS_PER_TOKEN
+    if len(text) <= char_budget:
         return text
-    return " ".join(words[-max_tokens:])
+    tail = text[-char_budget:]
+    # Snap forward to the next whitespace so we don't start in the middle of a word.
+    space = tail.find(" ")
+    if 0 <= space < len(tail) - 1:
+        tail = tail[space + 1:]
+    return tail.lstrip()
 
 
 class AttributionLabelError(Exception):
