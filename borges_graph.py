@@ -35,6 +35,13 @@ import neuronpedia_client as npc
 
 WINDOW_SIZE = 48
 
+# Diff classification: a shared feature is amplified/suppressed by *relative* change in
+# influence (scale-invariant), not an absolute delta. Control influences below the floor
+# never meaningfully fired, so a present test feature there is treated as "added" rather
+# than reported as a meaningless huge percentage.
+AMPLIFY_THRESHOLD = 0.10   # ±10% relative change flips a shared feature to amplified/suppressed
+INFLUENCE_FLOOR = 1e-3     # control influence below this is treated as absent
+
 
 @dataclass
 class Step:
@@ -107,7 +114,13 @@ def _node_key(node: dict) -> tuple:
 
 
 def _diff_subgraphs(ctrl_subgraph: dict | None, test_subgraph: dict | None) -> list[dict]:
-    """Diff two subgraphs by SAE feature key. Returns list of nodes with status + delta."""
+    """Diff two subgraphs by SAE feature key.
+
+    Returns a list of nodes annotated with `status`, `delta_influence` (absolute), and
+    `rel_influence` (the signed relative change, or None when undefined). Shared features
+    are classified by relative change so the threshold is scale-invariant: a feature is
+    `amplified`/`suppressed` when test influence is ≥AMPLIFY_THRESHOLD above/below control.
+    """
     ctrl_nodes = {}
     test_nodes = {}
 
@@ -129,21 +142,37 @@ def _diff_subgraphs(ctrl_subgraph: dict | None, test_subgraph: dict | None) -> l
         test_n = test_nodes.get(key)
 
         if ctrl_n and not test_n:
-            diff_nodes.append({**ctrl_n, "status": "removed", "delta_influence": 0.0})
+            diff_nodes.append({**ctrl_n, "status": "removed", "delta_influence": 0.0,
+                               "rel_influence": None})
         elif test_n and not ctrl_n:
-            diff_nodes.append({**test_n, "status": "added", "delta_influence": 0.0})
+            diff_nodes.append({**test_n, "status": "added", "delta_influence": 0.0,
+                               "rel_influence": None})
         else:
             ctrl_inf = ctrl_n.get("influence", 0.0)
             test_inf = test_n.get("influence", 0.0)
             delta = test_inf - ctrl_inf
-            threshold = 0.05
-            if delta > threshold:
-                status = "amplified"
-            elif delta < -threshold:
-                status = "suppressed"
+
+            if abs(ctrl_inf) < INFLUENCE_FLOOR:
+                # Control never meaningfully fired: a present test feature is effectively new.
+                if abs(test_inf) >= INFLUENCE_FLOOR:
+                    status, rel = "added", None
+                else:
+                    status, rel = "unchanged", 0.0
             else:
-                status = "unchanged"
-            diff_nodes.append({**test_n, "status": status, "delta_influence": round(delta, 4)})
+                rel = delta / abs(ctrl_inf)
+                if rel > AMPLIFY_THRESHOLD:
+                    status = "amplified"
+                elif rel < -AMPLIFY_THRESHOLD:
+                    status = "suppressed"
+                else:
+                    status = "unchanged"
+
+            diff_nodes.append({
+                **test_n,
+                "status": status,
+                "delta_influence": round(delta, 4),
+                "rel_influence": round(rel, 4) if rel is not None else None,
+            })
 
     return diff_nodes
 

@@ -173,6 +173,9 @@ const STATUS_STYLE = {
 }
 const STATUS_ORDER = ['added', 'removed', 'amplified', 'suppressed', 'unchanged']
 
+// Relative influence change as a signed percentage (null for added/removed, where it's undefined).
+const fmtPct = (r) => (r == null ? '' : `${r > 0 ? '+' : ''}${Math.round(r * 100)}%`)
+
 function DiffGraph({ diff }) {
   const [hovered, setHovered] = useState(null)
 
@@ -237,6 +240,7 @@ function DiffGraph({ diff }) {
                   <text x={cx(n.depth)} y={cy(n.ctx_idx) - r - 5}
                     fontFamily="var(--mono)" fontSize="8" fill={s.color} textAnchor="middle">
                     {(n.label ? n.label.slice(0, 22) : `L${n.depth} ctx${n.ctx_idx}`)} · {n.status}
+                    {n.rel_influence != null ? ` ${fmtPct(n.rel_influence)}` : ''}
                   </text>
                 )}
               </g>
@@ -379,8 +383,9 @@ export default function FocalLineScreen({ data, go }) {
                 Step 0 only — the single token where both chains share input context.
                 <strong style={{ color: 'var(--gold)' }}> Recruited</strong> features are circuits the
                 knowledge layer switched on that the control never used; <strong>dropped</strong> ones it
-                switched off. The knowledge layer's fingerprint is which circuits it recruits, not how it
-                reweights shared ones.
+                switched off. Shared circuits are <strong style={{ color: 'var(--gold)' }}>amplified</strong> or
+                <strong style={{ color: 'var(--test)' }}> suppressed</strong> when the knowledge layer shifts
+                their influence by ≥10% relative to control (hover a node for the exact %).
               </div>
             </div>
           )}
