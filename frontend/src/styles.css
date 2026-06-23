@@ -474,8 +474,15 @@ textarea.input, input.input {
   .step-num { width: 22px; height: 22px; border-width: 2px; }
 
   /* Collapse multi-column layouts (inline styles → need !important) */
+  .screen { overflow-x: hidden; }
   .screen-inner { padding: 32px 18px 72px; }
   .two-col { grid-template-columns: 1fr !important; gap: 24px !important; }
+  /* Grid/flex children default to min-width:auto, so a child with an intrinsic
+     width (the viewBox-sized SVGs) would stretch the column past the viewport.
+     Let them shrink to the track instead. */
+  .two-col > *, .stack-lg > * { min-width: 0; }
+  .lede { max-width: 100%; }
+  .panel svg, .graph-wrap svg { max-width: 100%; }
   .metric-grid { grid-template-columns: 1fr !important; }
   .metrics-row { grid-template-columns: 1fr; gap: 16px; }
   .modepick { grid-template-columns: 1fr; }
