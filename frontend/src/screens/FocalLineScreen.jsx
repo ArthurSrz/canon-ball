@@ -46,15 +46,24 @@ function BorgesGraph({ graph, color, label }) {
   const currentStep = Math.min(step, steps.length - 1)
   const token = steps[currentStep]?.token || '?'
 
-  // All clusters up to current step
-  const visible = clusters.slice(0, currentStep + 1).flatMap((cs, si) =>
-    cs.map(c => ({ ...c, stepIdx: si, fresh: si === currentStep }))
-  )
+  // Static "footprint" of the whole chain (deduped by position), drawn faintly so
+  // scrubbing swaps a bold per-step layer against stable context. The serial chain
+  // makes per-step graphs land on similar coordinates, so a cumulative fade reads as
+  // static — showing one step at a time against the footprint makes the change legible.
+  const ghost = useMemo(() => {
+    const m = {}
+    clusters.flat().forEach(c => {
+      const k = `${c.depth}:${c.ctx_idx}`
+      if (!m[k] || c.inf > m[k].inf) m[k] = c
+    })
+    return Object.values(m)
+  }, [clusters])
+  const current = clusters[currentStep] || []
 
   function nodeColor(c) {
     if (c.type === 'embedding') return '#000'
-    if (c.type === 'logit') return color  // uses the panel's color (var(--control) or var(--gold))
-    return c.fresh ? '#555' : '#ccc'  // feature nodes: dark when fresh, faded when old
+    if (c.type === 'logit') return color  // predicted-token node uses the panel color
+    return '#444'
   }
 
   return (
@@ -63,7 +72,7 @@ function BorgesGraph({ graph, color, label }) {
         <span style={{ fontFamily: 'var(--display)', fontSize: 13, textTransform: 'uppercase', letterSpacing: 1, color }}>{label}</span>
         <div style={{ flex: 1 }} />
         <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: '#777' }}>
-          step {currentStep + 1}/{steps.length} · token <strong style={{ color }}>&ldquo;{token}&rdquo;</strong>
+          step {currentStep + 1}/{steps.length} · {current.length} clusters · token <strong style={{ color }}>&ldquo;{token}&rdquo;</strong>
         </span>
       </div>
 
@@ -80,28 +89,25 @@ function BorgesGraph({ graph, color, label }) {
               stroke="#e4e4e4" strokeWidth="1" />
           ))}
 
-          {/* edges between consecutive steps */}
-          {visible.filter(c => c.stepIdx > 0).map((c, i) => {
-            const prev = visible.find(p => p.stepIdx === c.stepIdx - 1 && p.type === 'logit')
-            if (!prev) return null
-            return <line key={`e${i}`} x1={cx(prev.depth)} y1={cy(prev.ctx_idx)}
-              x2={cx(c.depth)} y2={cy(c.ctx_idx)}
-              stroke={color} strokeWidth="0.5" opacity="0.15" />
-          })}
+          {/* full-chain footprint — faint, static context */}
+          {ghost.map((c, i) => (
+            <circle key={`g${i}`} cx={cx(c.depth)} cy={cy(c.ctx_idx)} r={3}
+              fill="none" stroke="#d8d8d8" strokeWidth="1" opacity="0.7" />
+          ))}
 
-          {/* clusters */}
-          {visible.map((c, i) => {
-            const r = Math.min(12, Math.max(3, Math.sqrt(c.inf) * 5))
+          {/* current step — bold layer that changes as you scrub the slider */}
+          {current.map((c, i) => {
+            const r = Math.min(13, Math.max(4, Math.sqrt(c.inf) * 5.5))
             const col = nodeColor(c)
             const isHov = hovered === i
             return (
               <g key={i} onMouseEnter={() => setHovered(i)} onMouseLeave={() => setHovered(null)}>
-                <circle cx={cx(c.depth)} cy={cy(c.ctx_idx)} r={r + 4} fill="transparent" />
+                <circle cx={cx(c.depth)} cy={cy(c.ctx_idx)} r={r + 6} fill="transparent" />
                 <circle cx={cx(c.depth)} cy={cy(c.ctx_idx)} r={r}
-                  fill={c.type === 'logit' ? col : (c.fresh ? col : 'none')}
+                  fill={c.type === 'logit' ? col : '#fff'}
                   stroke={col}
-                  strokeWidth={c.type === 'logit' ? 2 : (c.fresh ? 0 : 1)}
-                  opacity={c.fresh ? 0.9 : 0.25} />
+                  strokeWidth={c.type === 'logit' ? 2.5 : 2}
+                  opacity={0.95} />
                 {isHov && (
                   <text x={cx(c.depth)} y={cy(c.ctx_idx) - r - 5}
                     fontFamily="var(--mono)" fontSize="8" fill={col} textAnchor="middle">
