@@ -371,6 +371,27 @@ export default function FocalLineScreen({ data, go }) {
 
       {chains && (
         <>
+          <div className="panel" style={{ marginBottom: 24 }}>
+            <div className="panel-label">Traced inputs — same as the volley</div>
+            <div style={{ fontFamily: 'var(--mono)', fontSize: 12.5, lineHeight: 1.6 }}>
+              <div style={{ marginBottom: 8, display: 'flex', gap: 10 }}>
+                <span style={{ color: '#777', minWidth: 96, flex: 'none' }}>PROMPT</span>
+                <span>{chains.control?.prompt || '—'}</span>
+              </div>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <span style={{ color: 'var(--gold)', minWidth: 96, flex: 'none' }}>KNOWLEDGE</span>
+                <span>{chains.test?.system_prompt?.trim() || '(none)'}</span>
+              </div>
+            </div>
+            <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: '#999', marginTop: 12, lineHeight: 1.5 }}>
+              The exact prompt and knowledge layer from your volley. The chain feeds them to
+              <strong> gemma-2-2b</strong> as <strong>knowledge + prompt</strong> (template-style
+              concatenation), independent of the injection mode used on the Landing Map — so the
+              <em> wiring</em> can differ even though the text is identical, and gemma-2-2b's own
+              tokens won't match the experiment's gemma-3-4b-it answers.
+            </div>
+          </div>
+
           <div className="two-col" style={{ gridTemplateColumns: '1fr 1fr', gap: 24, marginBottom: 24 }}>
             <div className="panel">
               <BorgesGraph graph={chains.control} color="var(--control)" label="Control — no KL" />
