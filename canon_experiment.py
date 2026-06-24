@@ -225,6 +225,17 @@ def assemble_messages(prompt: str, knowledge_layer: str, mode: str) -> list[dict
     return [{"role": "user", "content": prompt}]
 
 
+def assemble_chain_text(prompt: str, knowledge_layer: str, mode: str) -> str:
+    """Flatten an injection mode into a single plain-text prompt for the Circuit Tracer.
+
+    gemma-2-2b's attribution graph takes raw text, not chat roles, so we render the same
+    message assembly the experiment uses (assemble_messages) into one string by joining the
+    message contents in order. This keeps the Borges chain's wiring identical to the volley's.
+    """
+    msgs = assemble_messages(prompt, knowledge_layer, mode)
+    return "\n\n".join(m["content"] for m in msgs).strip()
+
+
 def run_single_trial(trial_type: str, index: int, prompt: str, knowledge_layer: str,
                      injection_mode: str = "system_user") -> Trial:
     if trial_type == "test":

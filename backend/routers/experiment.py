@@ -133,7 +133,7 @@ def _run_experiment_sync(req: FireRequest, experiment_id: str):
     )
 
     from backend.routers.chain import start_chains_bg
-    start_chains_bg(req.prompt, req.knowledge_layer)
+    start_chains_bg(req.prompt, req.knowledge_layer, req.injection_mode)
 
     resp = _build_response(experiment_data, analysis)
     resp["experimentId"] = experiment_id

@@ -78,6 +78,7 @@ class CompiledGraph:
     prompt: str
     system_prompt: str
     model: str
+    injection_mode: str = "system_user"
     steps: list[Step] = field(default_factory=list)
 
     @property
@@ -102,6 +103,7 @@ class CompiledGraph:
             "prompt": self.prompt,
             "system_prompt": self.system_prompt,
             "model": self.model,
+            "injection_mode": self.injection_mode,
             "generated_text": self.generated_text,
             "steps": [asdict(s) for s in self.steps],
         }
@@ -112,6 +114,7 @@ class CompiledGraph:
             prompt=d["prompt"],
             system_prompt=d.get("system_prompt", ""),
             model=d.get("model", "gemma-2-2b"),
+            injection_mode=d.get("injection_mode", "system_user"),
             steps=[Step(**s) for s in d.get("steps", [])],
         )
 
@@ -274,20 +277,29 @@ def compile_attribution(
     system_prompt: str = "",
     max_tokens: int = 10,
     on_step: Callable[[Step], None] | None = None,
+    injection_mode: str = "system_user",
 ) -> CompiledGraph:
     """Build a compiled attribution graph: autoregressive token generation with per-step causal graphs.
 
     Args:
         prompt: The user prompt.
-        system_prompt: Optional system prompt / knowledge layer to prepend.
+        system_prompt: Optional system prompt / knowledge layer to wire in.
         max_tokens: Maximum number of autoregressive steps.
         on_step: Optional callback called after each step completes.
+        injection_mode: How to combine knowledge + prompt into the trace context, mirroring the
+            experiment's assemble_messages so the chain's wiring matches the volley's.
 
     Returns:
         CompiledGraph with the full chain of steps.
     """
-    context = (system_prompt + "\n\n" + prompt).strip() if system_prompt else prompt
-    graph = CompiledGraph(prompt=prompt, system_prompt=system_prompt, model="gemma-2-2b")
+    if system_prompt:
+        # Render knowledge + prompt the same way the experiment does for this mode.
+        from canon_experiment import assemble_chain_text
+        context = assemble_chain_text(prompt, system_prompt, injection_mode)
+    else:
+        context = prompt
+    graph = CompiledGraph(prompt=prompt, system_prompt=system_prompt, model="gemma-2-2b",
+                          injection_mode=injection_mode)
 
     for i in range(max_tokens):
         windowed = _sliding_window(context)

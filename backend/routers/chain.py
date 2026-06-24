@@ -35,7 +35,8 @@ def invalidate_chains():
     _update_chain_state(state="idle", step=0, total=0, error=None)
 
 
-def start_chains_bg(prompt: str, knowledge_layer: str, max_tokens: int = 6):
+def start_chains_bg(prompt: str, knowledge_layer: str, injection_mode: str = "system_user",
+                    max_tokens: int = 6):
     """Called by experiment router after UMAP completes. Runs in background thread."""
     def _run():
         invalidate_chains()
@@ -49,14 +50,15 @@ def start_chains_bg(prompt: str, knowledge_layer: str, max_tokens: int = 6):
                 return on_step
 
             ctrl = bg.compile_attribution(prompt, system_prompt="", max_tokens=max_tokens,
-                                          on_step=make_on_step(0))
+                                          on_step=make_on_step(0), injection_mode=injection_mode)
             (RESULTS_DIR / "chain_control.json").write_text(
                 json.dumps(ctrl.to_dict(), indent=2)
             )
             _update_chain_state(step=max_tokens)
 
             test = bg.compile_attribution(prompt, system_prompt=knowledge_layer,
-                                          max_tokens=max_tokens, on_step=make_on_step(1))
+                                          max_tokens=max_tokens, on_step=make_on_step(1),
+                                          injection_mode=injection_mode)
             (RESULTS_DIR / "chain_test.json").write_text(
                 json.dumps(test.to_dict(), indent=2)
             )

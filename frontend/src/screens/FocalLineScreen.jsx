@@ -182,6 +182,14 @@ const STATUS_ORDER = ['added', 'removed', 'amplified', 'suppressed', 'unchanged'
 // Relative influence change as a signed percentage (null for added/removed, where it's undefined).
 const fmtPct = (r) => (r == null ? '' : `${r > 0 ? '+' : ''}${Math.round(r * 100)}%`)
 
+// Injection-mode ids → labels (mirrors canon_experiment.INJECTION_MODES).
+const MODE_LABELS = {
+  system_user: 'System → User',
+  interleave: 'Interleaved',
+  template: 'Template injection',
+  cot_priming: 'CoT priming',
+}
+
 function DiffGraph({ diff }) {
   const [hovered, setHovered] = useState(null)
 
@@ -371,6 +379,32 @@ export default function FocalLineScreen({ data, go }) {
 
       {chains && (
         <>
+          <div className="panel" style={{ marginBottom: 24 }}>
+            <div className="panel-label">
+              <span>Traced inputs — same as the volley</span>
+              <span className="chip" style={{ fontSize: 10 }}>
+                {MODE_LABELS[chains.test?.injection_mode] || chains.test?.injection_mode || '—'}
+              </span>
+            </div>
+            <div style={{ fontFamily: 'var(--mono)', fontSize: 12.5, lineHeight: 1.6 }}>
+              <div style={{ marginBottom: 8, display: 'flex', gap: 10 }}>
+                <span style={{ color: '#777', minWidth: 96, flex: 'none' }}>PROMPT</span>
+                <span>{chains.control?.prompt || '—'}</span>
+              </div>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <span style={{ color: 'var(--gold)', minWidth: 96, flex: 'none' }}>KNOWLEDGE</span>
+                <span>{chains.test?.system_prompt?.trim() || '(none)'}</span>
+              </div>
+            </div>
+            <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: '#999', marginTop: 12, lineHeight: 1.5 }}>
+              The exact prompt and knowledge layer from your volley, wired in with the
+              <strong> same injection mode</strong> ({MODE_LABELS[chains.test?.injection_mode] || chains.test?.injection_mode}).
+              The chain feeds that combined text to <strong>gemma-2-2b</strong>, so its own tokens
+              won't match the experiment's gemma-3-4b-it answers — it's an independent trace of the
+              same wiring, not a replay of the Landing Map.
+            </div>
+          </div>
+
           <div className="two-col" style={{ gridTemplateColumns: '1fr 1fr', gap: 24, marginBottom: 24 }}>
             <div className="panel">
               <BorgesGraph graph={chains.control} color="var(--control)" label="Control — no KL" />
