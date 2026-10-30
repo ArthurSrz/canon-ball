@@ -10,6 +10,15 @@ class FireRequest(BaseModel):
     knowledge_layer: str
     n_trials: int = 16
     injection_mode: str = "template"
+    # Both arms are rendered from `knowledge_layer`. "none" leaves the control arm bare.
+    knowledge_form: str = "prose"
+    control_knowledge_form: str = "none"
+
+
+class StructureRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
+    knowledge_layer: str
+    form: str = "schema"
 
 
 class TraceRequest(BaseModel):

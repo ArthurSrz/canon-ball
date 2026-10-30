@@ -16,6 +16,8 @@ import numpy as np
 from pathlib import Path
 from dataclasses import dataclass, field, asdict
 
+import knowledge_structurer as ks
+
 
 OLLAMA_BASE = "http://localhost:11434"
 
@@ -175,6 +177,7 @@ class Trial:
     output_tokens: list[str]
     embeddings: list[list[float]]
     latency_ms: float
+    knowledge_form: str = "none"
 
 
 @dataclass
@@ -183,6 +186,10 @@ class ExperimentRun:
     knowledge_layer: str
     n_trials: int
     injection_mode: str = "system_user"
+    knowledge_form: str = "prose"
+    control_knowledge_form: str = "none"
+    control_layer: str = ""
+    test_layer: str = ""
     control_trials: list[Trial] = field(default_factory=list)
     test_trials: list[Trial] = field(default_factory=list)
     timestamp: str = ""
@@ -237,8 +244,11 @@ def assemble_chain_text(prompt: str, knowledge_layer: str, mode: str) -> str:
 
 
 def run_single_trial(trial_type: str, index: int, prompt: str, knowledge_layer: str,
-                     injection_mode: str = "system_user") -> Trial:
-    if trial_type == "test":
+                     injection_mode: str = "system_user",
+                     knowledge_form: str = "none") -> Trial:
+    """Fire one shot. `knowledge_layer` is the layer already rendered for this arm —
+    an empty string means a bare shot, whichever arm it belongs to."""
+    if knowledge_layer:
         messages = assemble_messages(prompt, knowledge_layer, injection_mode)
     else:
         messages = [{"role": "user", "content": prompt}]
@@ -254,7 +264,8 @@ def run_single_trial(trial_type: str, index: int, prompt: str, knowledge_layer: 
         trial_type=trial_type,
         trial_index=index,
         prompt=prompt,
-        knowledge_layer=knowledge_layer if trial_type == "test" else "",
+        knowledge_layer=knowledge_layer,
+        knowledge_form=knowledge_form if knowledge_layer else "none",
         raw_output=raw_output,
         output_tokens=chunks,
         embeddings=embeddings,
@@ -264,24 +275,43 @@ def run_single_trial(trial_type: str, index: int, prompt: str, knowledge_layer: 
 
 def run_experiment(prompt: str, knowledge_layer: str, n_trials: int = 12,
                    injection_mode: str = "system_user",
+                   knowledge_form: str = "prose",
+                   control_knowledge_form: str = "none",
                    progress_callback=None) -> ExperimentRun:
+    """Fire a paired volley.
+
+    Both arms are rendered once from the SAME raw prose, so the only thing that can
+    differ between them is form. control_knowledge_form="none" leaves the control arm
+    bare (the classic knowledge-vs-nothing volley); set it to "prose" and the volley
+    measures what *structure* adds on top of the same facts.
+    """
+    control_layer = ("" if control_knowledge_form == "none"
+                     else ks.structure_knowledge(knowledge_layer, control_knowledge_form))
+    test_layer = ks.structure_knowledge(knowledge_layer, knowledge_form)
+
     run = ExperimentRun(
         prompt=prompt,
         knowledge_layer=knowledge_layer,
         n_trials=n_trials,
         injection_mode=injection_mode,
+        knowledge_form=knowledge_form,
+        control_knowledge_form=control_knowledge_form,
+        control_layer=control_layer,
+        test_layer=test_layer,
         timestamp=time.strftime("%Y-%m-%dT%H:%M:%S")
     )
 
     total = n_trials * 2
     for i in range(n_trials):
-        trial = run_single_trial("control", i, prompt, knowledge_layer, injection_mode)
+        trial = run_single_trial("control", i, prompt, control_layer, injection_mode,
+                                 control_knowledge_form)
         run.control_trials.append(trial)
         if progress_callback:
             progress_callback((i + 1) / total, f"Control trial {i+1}/{n_trials}")
 
     for i in range(n_trials):
-        trial = run_single_trial("test", i, prompt, knowledge_layer, injection_mode)
+        trial = run_single_trial("test", i, prompt, test_layer, injection_mode,
+                                 knowledge_form)
         run.test_trials.append(trial)
         if progress_callback:
             progress_callback((n_trials + i + 1) / total, f"Test trial {i+1}/{n_trials}")
@@ -297,6 +327,10 @@ def save_experiment(run: ExperimentRun, path: str = "results/experiment.json"):
         "knowledge_layer": run.knowledge_layer,
         "n_trials": run.n_trials,
         "injection_mode": run.injection_mode,
+        "knowledge_form": run.knowledge_form,
+        "control_knowledge_form": run.control_knowledge_form,
+        "control_layer": run.control_layer,
+        "test_layer": run.test_layer,
         "timestamp": run.timestamp,
         "control_trials": [asdict(t) for t in run.control_trials],
         "test_trials": [asdict(t) for t in run.test_trials],

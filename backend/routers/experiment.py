@@ -8,9 +8,10 @@ from pathlib import Path
 import numpy as np
 from fastapi import APIRouter, HTTPException
 
-from backend.schemas import FireRequest
+from backend.schemas import FireRequest, StructureRequest
 import canon_experiment as ce
 import canon_analysis as ca
+import knowledge_structurer as ks
 
 router = APIRouter()
 
@@ -91,6 +92,11 @@ def _build_response(experiment_data: dict, analysis: dict) -> dict:
             "nTrials": experiment_data["n_trials"],
             "model": "gemma-3-4b-it",
             "embedder": "bge-small-en-v1.5",
+            "injectionMode": experiment_data.get("injection_mode", "template"),
+            "knowledgeForm": experiment_data.get("knowledge_form", "prose"),
+            "controlKnowledgeForm": experiment_data.get("control_knowledge_form", "none"),
+            "controlLayer": experiment_data.get("control_layer", ""),
+            "testLayer": experiment_data.get("test_layer", experiment_data["knowledge_layer"]),
         },
         "control": groups["control"],
         "test": groups["test"],
@@ -114,6 +120,8 @@ def _run_experiment_sync(req: FireRequest, experiment_id: str):
         knowledge_layer=req.knowledge_layer,
         n_trials=req.n_trials,
         injection_mode=req.injection_mode,
+        knowledge_form=req.knowledge_form,
+        control_knowledge_form=req.control_knowledge_form,
     )
     ce.save_experiment(run)
 
@@ -133,7 +141,7 @@ def _run_experiment_sync(req: FireRequest, experiment_id: str):
     )
 
     from backend.routers.chain import start_chains_bg
-    start_chains_bg(req.prompt, req.knowledge_layer, req.injection_mode)
+    start_chains_bg(req.prompt, run.test_layer, req.injection_mode)
 
     resp = _build_response(experiment_data, analysis)
     resp["experimentId"] = experiment_id
@@ -157,3 +165,33 @@ def get_results(experiment_id: str | None = None):
     resp = _build_response(experiment_data, analysis)
     resp["experimentId"] = experiment_data.get("experiment_id")
     return resp
+
+
+@router.post("/structure")
+def preview_structure(req: StructureRequest):
+    """Preview what the structurer makes of a prose knowledge layer, before firing.
+
+    Returns the rendering in the requested form plus every other form, so the setup
+    screen can show the researcher exactly what each arm of the canon will be loaded with.
+    """
+    if req.form not in ks.STRUCTURE_FORMS:
+        raise HTTPException(400, f"Unknown form '{req.form}'. Known: {list(ks.STRUCTURE_FORMS)}")
+
+    knowledge = ks.analyze_knowledge(req.knowledge_layer)
+    return {
+        "form": req.form,
+        "rendered": ks.structure_knowledge(req.knowledge_layer, req.form),
+        "stats": ks.structure_stats(req.knowledge_layer, req.form),
+        "forms": [
+            {
+                "id": form_id,
+                "label": label,
+                "rendered": ks.structure_knowledge(req.knowledge_layer, form_id),
+            }
+            for form_id, label in ks.STRUCTURE_FORMS.items()
+        ],
+        "claims": [
+            {"index": c.index, "relation": c.relation, "text": c.text}
+            for c in knowledge.claims
+        ],
+    }
