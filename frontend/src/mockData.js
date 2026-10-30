@@ -106,6 +106,14 @@ const MOCK_DATA = (function () {
   };
 
   // ---- Injection modes (real table) ----
+  // ---- Knowledge forms the structurer can render the same facts in ----
+  const structureForms = [
+    { id: "prose", name: "Prose", how: "The raw text, untouched. The baseline form." },
+    { id: "bullets", name: "Bullet claims", how: "One claim per line — the prose cut into atomic facts." },
+    { id: "typed_facts", name: "Typed facts", how: "subject | relation | claim triples, one per line." },
+    { id: "schema", name: "Schema block", how: "Claims grouped under typed relation keys — the most structured form." },
+  ];
+
   const injectionModes = [
     {
       id: "system_user", name: "System → User", ratio: 0.724, tighten: 27.6,
@@ -220,7 +228,7 @@ const MOCK_DATA = (function () {
   };
 
   return {
-    setup, control, test, comparison, injectionModes,
+    setup, control, test, comparison, injectionModes, structureForms,
     responseTokens, graph, focal,
     N, field: { ctrlCenter, testCenter, ctrlSpread, testSpread },
   };

@@ -28,7 +28,7 @@ Set API keys in `.env` (see `.env.example`):
 ### Backend (FastAPI)
 - **`backend/main.py`** — FastAPI app, CORS, router mounting.
 - **`backend/config.py`** — Unified config from `.env` (replaces old st.secrets).
-- **`backend/routers/experiment.py`** — `POST /api/experiment/fire`, `GET /api/experiment/results`.
+- **`backend/routers/experiment.py`** — `POST /api/experiment/fire`, `GET /api/experiment/results`, `POST /api/experiment/structure`.
 - **`backend/routers/chain.py`** — `POST /api/chain/trace`, `POST /api/chain/focal` (builds focal line scene from Circuit Tracer + NLA).
 - **`backend/schemas.py`** — Pydantic request models.
 
@@ -43,6 +43,7 @@ Set API keys in `.env` (see `.env.example`):
 - **`borges_graph.py`** — Compiled attribution graph builder. `compile_attribution(prompt, system_prompt, max_tokens)` → `CompiledGraph`. Preserves SAE feature identifiers for future steering.
 - **`canon_experiment.py`** — Experiment engine. Four injection modes (`system_user`, `interleave`, `template`, `cot_priming`). Uses gemma-3-4b-it via OpenRouter + fastembed for embeddings.
 - **`canon_analysis.py`** — UMAP projection, dispersion metrics, Mann-Whitney U.
+- **`knowledge_structurer.py`** — Turns prose knowledge into structured knowledge. Four forms (`prose`, `bullets`, `typed_facts`, `schema`). Re-arranges, never rewrites: every claim is carried verbatim.
 - **`neuronpedia_client.py`** — NLA + Circuit Tracer client. Batched explain (16 positions/request cap), attribution graph generation + pruning.
 
 ## Key design details
@@ -51,7 +52,11 @@ Set API keys in `.env` (see `.env.example`):
 - **Two chains per experiment**: 1 control + 1 with KL (not per-trial — rate limits).
 - **Models**: gemma-3-4b-it (OpenRouter) for trials, gemma-2-2b (Neuronpedia Circuit Tracer) for attribution, gemma-3-27b-it (NLA layer 41) for verbalization.
 - **Design**: RawBlock brutalist — white ground, black borders, control=black, test=red, knowledge=orange.
-- Injection modes are the core experimental variable.
+- Injection modes are the core experimental variable; **knowledge form** is the second one.
+- **Structure as a variable**: both arms of a volley are rendered from the SAME raw prose by `knowledge_structurer`. `control_knowledge_form="none"` leaves the control arm bare (knowledge vs nothing — the classic volley); `control_knowledge_form="prose"` with a structured `knowledge_form` makes the volley measure what *structure* adds on top of identical facts.
+- The structurer is deterministic and content-preserving — `preserves_claims()` asserts every claim survives verbatim. That is what licenses reading the dispersion delta as a form effect rather than a content effect.
+- `POST /api/experiment/structure` previews every rendering before firing; the setup screen shows what each arm will be loaded with.
+- `scripts/fire_structure_study.py` fires the four-volley structure study and writes a markdown report. `--dry-run` stubs the model and the embedder (no API key, no network).
 - NLA explain endpoint caps at 16 new token positions per request; the client batches automatically.
 - Circuit Tracer: gemma-2-2b only, 64-token prompt cap. Sliding window when context exceeds cap.
 - `fetch_attribution_subgraph` preserves the `feature` field (SAE dictionary index) for future steering.

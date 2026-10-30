@@ -115,6 +115,8 @@ export default function App() {
   const [step, setStep] = useState(0)
   const [maxStep, setMaxStep] = useState(0)
   const [mode, setMode] = useState("template")
+  const [knowledgeForm, setKnowledgeForm] = useState("schema")
+  const [controlForm, setControlForm] = useState("prose")
   const [runKey, setRunKey] = useState(0)
   const { fire: hookFire, status: experimentStatus } = useExperiment()
   const running = experimentStatus === 'firing' || experimentStatus === 'polling'
@@ -150,6 +152,8 @@ export default function App() {
         knowledgeLayer: kl,
         nTrials: data.setup.nTrials,
         injectionMode: mode,
+        knowledgeForm,
+        controlKnowledgeForm: controlForm,
       })
       setData(prev => ({ ...prev, ...result }))
       setRunKey(k => k + 1)
@@ -198,7 +202,7 @@ export default function App() {
 
       <main className="stage">
         <div className={"screen" + (step === 0 ? " show" : "")}><ConceptScreen playful={playful} go={go} motion={t.motion} /></div>
-        <div className={"screen" + (step === 1 ? " show" : "")}><SetupScreen data={data} playful={playful} go={go} mode={mode} setMode={setMode} running={running} fire={fire} /></div>
+        <div className={"screen" + (step === 1 ? " show" : "")}><SetupScreen data={data} playful={playful} go={go} mode={mode} setMode={setMode} running={running} fire={fire} knowledgeForm={knowledgeForm} setKnowledgeForm={setKnowledgeForm} controlForm={controlForm} setControlForm={setControlForm} /></div>
         <div className={"screen" + (step === 2 ? " show" : "")}><MapScreen data={data} playful={playful} go={go} runKey={runKey} replay={replay} motion={t.motion} /></div>
         <div className={"screen" + (step === 3 ? " show" : "")}>{step === 3 && <MetricsScreen data={data} go={go} runKey={runKey} />}</div>
         <div className={"screen" + (step === 4 ? " show" : "")}><ModesScreen data={data} go={go} /></div>

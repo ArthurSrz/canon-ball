@@ -17,11 +17,11 @@ export function useExperiment() {
     throw new Error('Experiment did not complete within 6 minutes')
   }
 
-  const fire = useCallback(async ({ prompt, knowledgeLayer, nTrials, injectionMode }) => {
+  const fire = useCallback(async ({ prompt, knowledgeLayer, nTrials, injectionMode, knowledgeForm, controlKnowledgeForm }) => {
     setStatus('firing')
     setError(null)
 
-    const fetchPromise = fireExperiment({ prompt, knowledgeLayer, nTrials, injectionMode })
+    const fetchPromise = fireExperiment({ prompt, knowledgeLayer, nTrials, injectionMode, knowledgeForm, controlKnowledgeForm })
 
     try {
       const result = await Promise.race([

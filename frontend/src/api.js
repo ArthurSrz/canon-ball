@@ -1,10 +1,27 @@
 const API_BASE = '';  // proxied by Vite
 
-export async function fireExperiment({ prompt, knowledgeLayer, nTrials, injectionMode }) {
+export async function fireExperiment({ prompt, knowledgeLayer, nTrials, injectionMode, knowledgeForm, controlKnowledgeForm }) {
   const res = await fetch(`${API_BASE}/api/experiment/fire`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ prompt, knowledge_layer: knowledgeLayer, n_trials: nTrials, injection_mode: injectionMode }),
+    body: JSON.stringify({
+      prompt,
+      knowledge_layer: knowledgeLayer,
+      n_trials: nTrials,
+      injection_mode: injectionMode,
+      knowledge_form: knowledgeForm || 'prose',
+      control_knowledge_form: controlKnowledgeForm || 'none',
+    }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function previewStructure({ knowledgeLayer, form }) {
+  const res = await fetch(`${API_BASE}/api/experiment/structure`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ knowledge_layer: knowledgeLayer, form }),
   });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
