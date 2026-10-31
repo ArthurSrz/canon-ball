@@ -10,6 +10,9 @@ import MetricsScreen from './screens/MetricsScreen'
 import ModesScreen from './screens/ModesScreen'
 import FocalLineScreen from './screens/FocalLineScreen'
 
+// The only form the test arm is fired with — see knowledge_graph.py.
+const TEST_ARM_FORM = "knowledge_graph"
+
 const STEPS = [
   { n: "00", label: "Concept" },
   { n: "01", label: "Load the canon" },
@@ -115,7 +118,8 @@ export default function App() {
   const [step, setStep] = useState(0)
   const [maxStep, setMaxStep] = useState(0)
   const [mode, setMode] = useState("template")
-  const [knowledgeForm, setKnowledgeForm] = useState("schema")
+  // The test arm has one form now: the knowledge graph read out of the prose.
+  const knowledgeForm = TEST_ARM_FORM
   const [controlForm, setControlForm] = useState("prose")
   const [runKey, setRunKey] = useState(0)
   const { fire: hookFire, status: experimentStatus } = useExperiment()
@@ -202,7 +206,7 @@ export default function App() {
 
       <main className="stage">
         <div className={"screen" + (step === 0 ? " show" : "")}><ConceptScreen playful={playful} go={go} motion={t.motion} /></div>
-        <div className={"screen" + (step === 1 ? " show" : "")}><SetupScreen data={data} playful={playful} go={go} mode={mode} setMode={setMode} running={running} fire={fire} knowledgeForm={knowledgeForm} setKnowledgeForm={setKnowledgeForm} controlForm={controlForm} setControlForm={setControlForm} /></div>
+        <div className={"screen" + (step === 1 ? " show" : "")}><SetupScreen data={data} playful={playful} go={go} mode={mode} setMode={setMode} running={running} fire={fire} knowledgeForm={knowledgeForm} controlForm={controlForm} setControlForm={setControlForm} /></div>
         <div className={"screen" + (step === 2 ? " show" : "")}><MapScreen data={data} playful={playful} go={go} runKey={runKey} replay={replay} motion={t.motion} /></div>
         <div className={"screen" + (step === 3 ? " show" : "")}>{step === 3 && <MetricsScreen data={data} go={go} runKey={runKey} />}</div>
         <div className={"screen" + (step === 4 ? " show" : "")}><ModesScreen data={data} go={go} /></div>

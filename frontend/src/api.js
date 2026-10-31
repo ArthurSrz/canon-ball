@@ -9,8 +9,8 @@ export async function fireExperiment({ prompt, knowledgeLayer, nTrials, injectio
       knowledge_layer: knowledgeLayer,
       n_trials: nTrials,
       injection_mode: injectionMode,
-      knowledge_form: knowledgeForm || 'prose',
-      control_knowledge_form: controlKnowledgeForm || 'none',
+      knowledge_form: knowledgeForm || 'knowledge_graph',
+      control_knowledge_form: controlKnowledgeForm || 'prose',
     }),
   });
   if (!res.ok) throw new Error(await res.text());

@@ -41,11 +41,13 @@ KNOWLEDGE = (
 )
 
 # (label, control arm form, test arm form)
+# The test arm has one form — the knowledge graph. The first volley is the historical
+# Canon Ball measure (what knowledge adds); the last is the structure measure (what the
+# graph adds on top of the very same facts in prose).
 VOLLEYS = [
     ("Prose vs rien", "none", "prose"),
-    ("Puces vs prose", "prose", "bullets"),
-    ("Faits typés vs prose", "prose", "typed_facts"),
-    ("Schéma vs prose", "prose", "schema"),
+    ("Graphe vs rien", "none", ks.TEST_ARM_FORM),
+    ("Graphe vs prose", "prose", ks.TEST_ARM_FORM),
 ]
 
 
@@ -139,9 +141,11 @@ def write_report(results: list[dict], stats: dict, path: Path, dry_run: bool) ->
         f"Seule la *forme* de la couche de connaissance change. "
         f"{results[0]['n_trials']} essais par bras.",
         "",
-        f"Le structureur lit {stats['n_claims']} affirmations dans la prose et leur attribue "
-        f"{len(stats['relations'])} relations "
-        f"({', '.join(f'{k} ×{v}' for k, v in stats['relations'].items())}). "
+        f"L'extracteur lit {stats['n_claims']} affirmations dans la prose et en tire un graphe "
+        f"de {stats.get('graph', {}).get('n_nodes', 0)} nœuds et "
+        f"{stats.get('graph', {}).get('n_edges', 0)} arêtes, typées par "
+        f"{len(stats.get('graph', {}).get('relations', stats['relations']))} relations "
+        f"({', '.join(f'{k} ×{v}' for k, v in stats.get('graph', {}).get('relations', stats['relations']).items())}). "
         f"Sujet extrait : **{stats['subject']}**. "
         f"Les affirmations sont reportées mot pour mot : "
         f"{'aucune n’est réécrite' if stats['claims_preserved'] else '⚠️ certaines ont été altérées'}.",
@@ -161,10 +165,11 @@ def write_report(results: list[dict], stats: dict, path: Path, dry_run: bool) ->
 
     lines += [
         "",
-        "### Les quatre formes",
+        "### Les deux formes en jeu",
         "",
     ]
-    for form_id, label in ks.STRUCTURE_FORMS.items():
+    for form_id in ("prose", ks.TEST_ARM_FORM):
+        label = ks.STRUCTURE_FORMS[form_id]
         rendered = ks.structure_knowledge(KNOWLEDGE, form_id)
         preview = rendered if len(rendered) < 700 else rendered[:700] + " …"
         lines += [f"**{label}** (`{form_id}`, {len(rendered)} caractères)", "",
@@ -173,10 +178,10 @@ def write_report(results: list[dict], stats: dict, path: Path, dry_run: bool) ->
     lines += [
         "### Lecture",
         "",
-        "La première volée mesure ce que la *connaissance* apporte — c'est la mesure "
-        "historique de Canon Ball. Les trois suivantes mesurent ce que la *structure* ajoute "
-        "par-dessus : le bras de contrôle porte déjà les mêmes faits en prose, donc tout "
-        "resserrement restant est imputable à la mise en forme seule.",
+        "Les deux premières volées mesurent ce que la *connaissance* apporte — c'est la "
+        "mesure historique de Canon Ball, prose puis graphe contre un bras nu. La dernière "
+        "mesure ce que la *structure* ajoute par-dessus : le bras de contrôle porte déjà les "
+        "mêmes faits en prose, donc tout resserrement restant est imputable au graphe seul.",
         "",
     ]
 
@@ -199,9 +204,12 @@ def main():
         _install_dry_run_stubs()
         print("Dry run: model and embedder are stand-ins.\n", flush=True)
 
-    stats = ks.structure_stats(KNOWLEDGE, "schema")
-    print(f"Structurer: {stats['n_claims']} claims, subject '{stats['subject']}', "
-          f"relations {stats['relations']}, verbatim={stats['claims_preserved']}\n", flush=True)
+    stats = ks.structure_stats(KNOWLEDGE, ks.TEST_ARM_FORM)
+    graph = stats.get("graph", {})
+    print(f"Extractor: {stats['n_claims']} claims → {graph.get('n_nodes', 0)} nodes, "
+          f"{graph.get('n_edges', 0)} edges, subject '{stats['subject']}', "
+          f"relations {graph.get('relations', stats['relations'])}, "
+          f"verbatim={stats['claims_preserved']}\n", flush=True)
 
     print(f"Firing {len(VOLLEYS)} volleys × {args.n * 2} shots, mode '{args.mode}':", flush=True)
     results = [fire_volley(label, ctrl, test, args.n, args.mode)

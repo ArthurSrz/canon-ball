@@ -107,11 +107,13 @@ const MOCK_DATA = (function () {
 
   // ---- Injection modes (real table) ----
   // ---- Knowledge forms the structurer can render the same facts in ----
+  // The test arm has one form: the knowledge graph the extractor reads out of the prose.
+  // The control arm carries the same facts as prose, so the delta is the graph itself.
   const structureForms = [
-    { id: "prose", name: "Prose", how: "The raw text, untouched. The baseline form." },
-    { id: "bullets", name: "Bullet claims", how: "One claim per line — the prose cut into atomic facts." },
-    { id: "typed_facts", name: "Typed facts", how: "subject | relation | claim triples, one per line." },
-    { id: "schema", name: "Schema block", how: "Claims grouped under typed relation keys — the most structured form." },
+    {
+      id: "knowledge_graph", name: "Knowledge graph",
+      how: "The prose read into nodes and typed edges, every edge grounded in the verbatim claim it came from. Nothing is rewritten — the graph is laid over the facts.",
+    },
   ];
 
   const injectionModes = [

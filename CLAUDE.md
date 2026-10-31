@@ -43,7 +43,8 @@ Set API keys in `.env` (see `.env.example`):
 - **`borges_graph.py`** — Compiled attribution graph builder. `compile_attribution(prompt, system_prompt, max_tokens)` → `CompiledGraph`. Preserves SAE feature identifiers for future steering.
 - **`canon_experiment.py`** — Experiment engine. Four injection modes (`system_user`, `interleave`, `template`, `cot_priming`). Uses gemma-3-4b-it via OpenRouter + fastembed for embeddings.
 - **`canon_analysis.py`** — UMAP projection, dispersion metrics, Mann-Whitney U.
-- **`knowledge_structurer.py`** — Turns prose knowledge into structured knowledge. Four forms (`prose`, `bullets`, `typed_facts`, `schema`). Re-arranges, never rewrites: every claim is carried verbatim.
+- **`knowledge_structurer.py`** — Turns prose knowledge into structured knowledge. Five forms (`prose`, `bullets`, `typed_facts`, `schema`, `knowledge_graph`). Re-arranges, never rewrites: every claim is carried verbatim. `TEST_ARM_FORM` names the one form the test arm is fired with.
+- **`knowledge_graph.py`** — The KG extractor: reads prose into nodes + typed edges, each edge grounded in the verbatim claim it came from. Deterministic (no model call). `extract_graph` / `render_graph` / `graph_stats` / `graph_payload`.
 - **`neuronpedia_client.py`** — NLA + Circuit Tracer client. Batched explain (16 positions/request cap), attribution graph generation + pruning.
 
 ## Key design details
@@ -53,10 +54,11 @@ Set API keys in `.env` (see `.env.example`):
 - **Models**: gemma-3-4b-it (OpenRouter) for trials, gemma-2-2b (Neuronpedia Circuit Tracer) for attribution, gemma-3-27b-it (NLA layer 41) for verbalization.
 - **Design**: RawBlock brutalist — white ground, black borders, control=black, test=red, knowledge=orange.
 - Injection modes are the core experimental variable; **knowledge form** is the second one.
-- **Structure as a variable**: both arms of a volley are rendered from the SAME raw prose by `knowledge_structurer`. `control_knowledge_form="none"` leaves the control arm bare (knowledge vs nothing — the classic volley); `control_knowledge_form="prose"` with a structured `knowledge_form` makes the volley measure what *structure* adds on top of identical facts.
-- The structurer is deterministic and content-preserving — `preserves_claims()` asserts every claim survives verbatim. That is what licenses reading the dispersion delta as a form effect rather than a content effect.
+- **Structure as a variable**: both arms of a volley are rendered from the SAME raw prose by `knowledge_structurer`. `control_knowledge_form="none"` leaves the control arm bare (knowledge vs nothing — the classic volley); `control_knowledge_form="prose"` makes the volley measure what *structure* adds on top of identical facts.
+- **The test arm fires one form: the knowledge graph** (`knowledge_form="knowledge_graph"`, the API and UI default). The setup screen states the form instead of offering a picker; the control arm is still a choice (`none` or `prose`). The other forms stay in the library as control-arm/bench renderings.
+- The structurer and the KG extractor are deterministic and content-preserving — `preserves_claims()` asserts every claim survives verbatim. The graph is laid *over* the prose: every edge group prints its source claim on a `source:` line, so the facts are never replaced by triples. That is what licenses reading the dispersion delta as a form effect rather than a content effect.
 - `POST /api/experiment/structure` previews every rendering before firing; the setup screen shows what each arm will be loaded with.
-- `scripts/fire_structure_study.py` fires the four-volley structure study and writes a markdown report. `--dry-run` stubs the model and the embedder (no API key, no network).
+- `scripts/fire_structure_study.py` fires the three-volley structure study (prose vs nothing, graph vs nothing, graph vs prose) and writes a markdown report. `--dry-run` stubs the model and the embedder (no API key, no network).
 - NLA explain endpoint caps at 16 new token positions per request; the client batches automatically.
 - Circuit Tracer: gemma-2-2b only, 64-token prompt cap. Sliding window when context exceeds cap.
 - `fetch_attribution_subgraph` preserves the `feature` field (SAE dictionary index) for future steering.
@@ -78,7 +80,7 @@ An interpretability instrument for researchers studying what knowledge does to l
 - **Tech stack**: FastAPI + React/Vite — no switching mid-flight
 - **Models**: gemma-3-4b-it (OpenRouter) for trials; gemma-2-2b (Neuronpedia) for attribution — API-locked
 - **Rate limits**: Circuit Tracer 30/hr hard cap; NLA 16-position batch cap
-- **Knowledge form**: System prompt layer only (not RAG, not fine-tuning)
+- **Knowledge form**: System prompt layer only (not RAG, not fine-tuning); the test arm's rendering is the extracted knowledge graph
 - **Scope**: Configure + fire + read results in a single session (no persistence)
 <!-- GSD:project-end -->
 

@@ -20,8 +20,7 @@ function LayerPreview({ title, color, body, empty }) {
 }
 
 export default function SetupScreen({ data, playful, go, mode, setMode, running, fire,
-                                      knowledgeForm, setKnowledgeForm,
-                                      controlForm, setControlForm }) {
+                                      knowledgeForm, controlForm, setControlForm }) {
   const M = data.injectionModes
   const F = data.structureForms
   const active = M.find(m => m.id === mode)
@@ -47,6 +46,8 @@ export default function SetupScreen({ data, playful, go, mode, setMode, running,
 
   const renderOf = id => preview?.forms?.find(f => f.id === id)?.rendered || ""
   const stats = preview?.stats
+  const graph = preview?.graph
+  const graphStats = stats?.graph
 
   return (
     <div className="screen-inner">
@@ -55,7 +56,7 @@ export default function SetupScreen({ data, playful, go, mode, setMode, running,
         The canon fires twice from the same <span style={{ color: "var(--gold)" }}>facts</span>.
         {controlForm === "none"
           ? <> Once with no <span style={{ color: "var(--gold)" }}>knowledge layer</span> <span className="control-word">(control)</span>, once with it <span className="test-word">(test)</span>.</>
-          : <> Once with them in <span className="control-word">prose (control)</span>, once <span className="test-word">structured (test)</span> — so whatever moves is the structure, not the content.</>}
+          : <> Once with them in <span className="control-word">prose (control)</span>, once as a <span className="test-word">knowledge graph (test)</span> — so whatever moves is the structure, not the content.</>}
       </p>
 
       <div className="two-col" style={{ gridTemplateColumns: "1.1fr 0.9fr", gap: 40 }}>
@@ -101,13 +102,15 @@ export default function SetupScreen({ data, playful, go, mode, setMode, running,
         <div className="stack-lg">
           <div className="field">
             <div className="field-label" style={{ color: "var(--test)" }}>4 · The test arm's form</div>
-            <div className="modepick">
-              {F.map(f => (
-                <button key={f.id} className={"modechip" + (knowledgeForm === f.id ? " active" : "")}
-                  onClick={() => setKnowledgeForm(f.id)}>
-                  <div className="mc-name">{f.name}</div>
-                </button>
-              ))}
+            <div style={{ border: "1.5px solid var(--test)", padding: "10px 12px" }}>
+              <div className="mc-name">{activeForm?.name || "Knowledge graph"}</div>
+              <div className="rail-note" style={{ marginTop: 6 }}>
+                {graph
+                  ? `${graph.nodes.length} nodes · ${graph.edges.length} edges · ` +
+                    `${Object.entries(graphStats?.relations || {})
+                        .map(([r, n]) => `${r} ×${n}`).join(", ")}`
+                  : "Reading the prose into a graph…"}
+              </div>
             </div>
           </div>
           <p className="lede" style={{ fontSize: 14, color: "var(--ink)", margin: 0 }}>
