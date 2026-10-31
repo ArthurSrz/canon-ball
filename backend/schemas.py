@@ -11,14 +11,16 @@ class FireRequest(BaseModel):
     n_trials: int = 16
     injection_mode: str = "template"
     # Both arms are rendered from `knowledge_layer`. "none" leaves the control arm bare.
-    knowledge_form: str = "prose"
-    control_knowledge_form: str = "none"
+    # The test arm is fired as a knowledge graph; the control arm carries the same facts
+    # in prose, so the delta between them is the graph, not the content.
+    knowledge_form: str = "knowledge_graph"
+    control_knowledge_form: str = "prose"
 
 
 class StructureRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
     knowledge_layer: str
-    form: str = "schema"
+    form: str = "knowledge_graph"
 
 
 class TraceRequest(BaseModel):

@@ -7,11 +7,13 @@ verbatim, so a volley fired at `prose` and a volley fired at `schema` differ onl
 in form. That is what makes the dispersion delta readable as a *structure* effect
 rather than a content effect.
 
-Four forms, in increasing order of structure:
-    prose       the raw text, untouched (the baseline)
-    bullets     one claim per line
-    typed_facts subject | relation | claim triples
-    schema      claims grouped under typed relation keys
+Five forms, in increasing order of structure:
+    prose           the raw text, untouched (the baseline, and the control arm's form)
+    bullets         one claim per line
+    typed_facts     subject | relation | claim triples
+    schema          claims grouped under typed relation keys
+    knowledge_graph nodes + typed edges, each grounded in its verbatim claim
+                    (knowledge_graph.py — the test arm's form)
 """
 
 import re
@@ -23,7 +25,12 @@ STRUCTURE_FORMS = {
     "bullets": "Bullet claims",
     "typed_facts": "Typed facts",
     "schema": "Schema block",
+    "knowledge_graph": "Knowledge graph",
 }
+
+# The only form the test arm is fired with. Everything else is a control-arm baseline
+# or a bench form kept for the structure study.
+TEST_ARM_FORM = "knowledge_graph"
 
 # Order matters only for ties — the cue that appears EARLIEST in a claim wins,
 # because the claim's head predicate is normally its first one.
@@ -91,16 +98,27 @@ def split_claims(text: str) -> list[str]:
     return claims
 
 
-def classify_claim(claim: str) -> str:
-    """Assign a relation by the cue that appears earliest in the claim."""
+def match_relation(claim: str) -> tuple[str, re.Match | None]:
+    """The claim's relation and the cue match that assigned it — earliest cue wins.
+
+    The match is what lets the graph extractor cut a claim at its predicate: everything
+    before it is the source, everything after it is the object span.
+    """
     best_relation = DEFAULT_RELATION
+    best_match: re.Match | None = None
     best_position = len(claim) + 1
     for relation, pattern in RELATION_CUES:
         match = re.search(pattern, claim, re.IGNORECASE)
         if match and match.start() < best_position:
             best_relation = relation
+            best_match = match
             best_position = match.start()
-    return best_relation
+    return best_relation, best_match
+
+
+def classify_claim(claim: str) -> str:
+    """Assign a relation by the cue that appears earliest in the claim."""
+    return match_relation(claim)[0]
 
 
 def extract_subject(claims: list[str]) -> tuple[str, list[str]]:
@@ -148,6 +166,13 @@ def _render_schema(knowledge: StructuredKnowledge) -> str:
     return "\n".join(lines)
 
 
+def _render_knowledge_graph(text: str) -> str:
+    # Imported here, not at module scope: knowledge_graph builds on this module's
+    # claim splitting and relation cues, so a top-level import would close a cycle.
+    import knowledge_graph as kg
+    return kg.render_graph(kg.extract_graph(text))
+
+
 _RENDERERS = {
     "bullets": _render_bullets,
     "typed_facts": _render_typed_facts,
@@ -163,6 +188,8 @@ def structure_knowledge(text: str, form: str = "prose") -> str:
         raise ValueError(f"Unknown structure form '{form}'. Known: {list(STRUCTURE_FORMS)}")
     if form == "prose":
         return text.strip()
+    if form == "knowledge_graph":
+        return _render_knowledge_graph(text)
     return _RENDERERS[form](analyze_knowledge(text))
 
 
@@ -176,7 +203,7 @@ def structure_stats(text: str, form: str = "prose") -> dict:
     knowledge = analyze_knowledge(text)
     rendered = structure_knowledge(text, form)
     relations = {rel: len(claims) for rel, claims in knowledge.by_relation().items()}
-    return {
+    stats = {
         "form": form,
         "form_label": STRUCTURE_FORMS.get(form, form),
         "subject": knowledge.subject,
@@ -187,3 +214,13 @@ def structure_stats(text: str, form: str = "prose") -> dict:
         "rendered_chars": len(rendered),
         "claims_preserved": preserves_claims(text, rendered),
     }
+    if form == "knowledge_graph" and knowledge.claims:
+        import knowledge_graph as kg
+        graph = kg.extract_graph(text)
+        stats["graph"] = {
+            "n_nodes": len(graph.nodes),
+            "n_edges": len(graph.edges),
+            "node_kinds": graph.node_kinds(),
+            "relations": graph.relations(),
+        }
+    return stats

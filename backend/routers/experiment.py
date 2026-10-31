@@ -12,6 +12,7 @@ from backend.schemas import FireRequest, StructureRequest
 import canon_experiment as ce
 import canon_analysis as ca
 import knowledge_structurer as ks
+import knowledge_graph as kg
 
 router = APIRouter()
 
@@ -182,6 +183,9 @@ def preview_structure(req: StructureRequest):
         "form": req.form,
         "rendered": ks.structure_knowledge(req.knowledge_layer, req.form),
         "stats": ks.structure_stats(req.knowledge_layer, req.form),
+        # The extracted graph itself — the setup screen reads its counts, and it is what
+        # a future screen would draw the test arm's layer from.
+        "graph": kg.graph_payload(req.knowledge_layer) if knowledge.claims else None,
         "forms": [
             {
                 "id": form_id,
