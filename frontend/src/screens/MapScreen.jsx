@@ -22,7 +22,7 @@ export default function MapScreen({ data, playful, go, runKey, replay, motion })
             {picked ? (
               <div>
                 <div className="panel-label" style={{ color: picked.warm ? "var(--test)" : "var(--control)" }}>
-                  {picked.warm ? "TEST" : "CONTROL"} · shot {picked.i + 1} of {data.N}
+                  {picked.warm ? "TEST" : "CONTROL"} · shot {picked.idx + 1} of {data.N}
                 </div>
                 <p style={{ fontFamily: "var(--display)", fontSize: 21, lineHeight: 1.35, margin: 0 }}>
                   "{picked.output}"
