@@ -15,6 +15,9 @@ class FireRequest(BaseModel):
     # in prose, so the delta between them is the graph, not the content.
     knowledge_form: str = "knowledge_graph"
     control_knowledge_form: str = "prose"
+    # Tokens a single shot may generate. None uses canon_experiment's default; raising it
+    # lets long answers finish, and moves the dispersion numbers with them.
+    max_tokens: int | None = None
 
 
 class StructureRequest(BaseModel):
