@@ -36,7 +36,8 @@ import requests
 # OpenRouter's catalogue moves faster than this file does. Any slug it serves works here;
 # check https://openrouter.ai/models and set KS_EXTRACTION_MODEL if this default has been
 # retired — an unknown slug is a 400, which lands in the rule-based fallback.
-DEFAULT_EXTRACTION_MODEL = "anthropic/claude-sonnet-4.5"
+# Checked against the live catalogue on 2026-11-01.
+DEFAULT_EXTRACTION_MODEL = "anthropic/claude-sonnet-5.5"
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 REQUEST_TIMEOUT = 90
