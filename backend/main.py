@@ -43,11 +43,21 @@ async def warmup():
 
 @app.get("/health")
 def health():
-    from backend.config import openrouter_key, neuronpedia_key
+    from backend.config import openrouter_key, neuronpedia_key, hf_key
+    import concept_extractor as ce
     return {
         "status": "ok",
         "openrouter_key_set": bool(openrouter_key()),
         "neuronpedia_key_set": bool(neuronpedia_key()),
+        "hf_key_set": bool(hf_key()),
+        # The knowledge-layer extractor runs on OpenRouter only. HF_API_KEY covers the
+        # trials but not this, which is the likeliest reason a deployment that generates
+        # fine still reads its taxonomy by rule.
+        "extraction": {
+            "model": ce.extraction_model(),
+            "available": ce.available(),
+            "last_failure": ce.last_failure(),
+        },
     }
 
 

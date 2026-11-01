@@ -50,7 +50,13 @@ MAX_CONCEPT_CHARS = 80
 _CONCEPTS_TOKENS = 1500
 _LINKS_TOKENS = 2000
 
-_cache: dict[tuple[str, str], "Extraction | None"] = {}
+# A success is cached for the life of the process. A FAILURE is not: a sticky failure
+# would mean that fixing the key, the slug or the network never takes effect until the
+# server restarts, because the text that failed once is answered from the cache forever.
+FAILURE_TTL_SECONDS = 60
+
+_cache: dict[tuple[str, str], "Extraction"] = {}
+_failures: dict[tuple[str, str], tuple[str, float]] = {}
 _last_failure: str | None = None
 
 
@@ -89,8 +95,29 @@ def available() -> bool:
 
 
 def last_failure() -> str | None:
-    """Why the most recent extraction fell back, or None. Surfaced in the payload."""
+    """Why the most recent extraction fell back, anywhere in the process, or None."""
     return _last_failure
+
+
+def failure_for(text: str) -> str | None:
+    """Why THIS text fell back, or None. Keyed, so a concurrent preview's failure for some
+    other text is never reported against this one."""
+    if not text or not text.strip():
+        return None
+    entry = _failures.get((text.strip(), extraction_model()))
+    if not entry:
+        return None
+    reason, when = entry
+    if time.time() - when > FAILURE_TTL_SECONDS:
+        return None
+    return reason
+
+
+def _record_failure(key: tuple[str, str], reason: str) -> None:
+    global _last_failure
+    _last_failure = reason
+    _failures[key] = (reason, time.time())
+    print(f"Concept extraction fell back to the rule-based reader — {reason}", flush=True)
 
 
 # ───────────────────────────── the model call ─────────────────────────────
@@ -299,8 +326,15 @@ def extract(text: str) -> Extraction | None:
     if key in _cache:
         return _cache[key]
 
+    # A failure within the TTL is not retried — a preview fires on every edit and a dead
+    # host should not be hammered — but it does expire, so a fix takes effect on its own.
+    recent = _failures.get(key)
+    if recent and time.time() - recent[1] <= FAILURE_TTL_SECONDS:
+        return None
+
     if not available():
-        _last_failure = "no OPENROUTER_API_KEY set"
+        _record_failure(key, "no OPENROUTER_API_KEY in this environment "
+                             "(the trials can run on HF_API_KEY; this extractor cannot)")
         return None
 
     started = time.time()
@@ -308,10 +342,7 @@ def extract(text: str) -> Extraction | None:
         subject, concepts = extract_concepts(text, model)
         pairs = extract_links(text, subject, concepts, model)
     except Exception as exc:                      # noqa: BLE001 — any failure falls back
-        _last_failure = f"{type(exc).__name__}: {exc}"
-        print(f"Concept extraction fell back to the rule-based reader — {_last_failure}",
-              flush=True)
-        _cache[key] = None
+        _record_failure(key, f"{model} — {type(exc).__name__}: {exc}")
         return None
 
     extraction = Extraction(
@@ -322,10 +353,12 @@ def extract(text: str) -> Extraction | None:
         latency_ms=(time.time() - started) * 1000,
     )
     _last_failure = None
+    _failures.pop(key, None)
     _cache[key] = extraction
     return extraction
 
 
 def clear_cache() -> None:
-    """Drop the memoised extractions — for tests, and for a deliberate re-read."""
+    """Drop the memoised extractions and failures — for tests, and for a deliberate re-read."""
     _cache.clear()
+    _failures.clear()

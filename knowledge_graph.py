@@ -136,6 +136,9 @@ class KnowledgeGraph:
     # Which reader produced this — "llm" or "rules". Never inferred by a caller.
     source: str = "rules"
     model: str = ""
+    # Why the LLM reader did not run, when it did not. "" when it did, or when it was
+    # never asked for. A fallback with no stated reason is a fallback nobody can debug.
+    fallback_reason: str = ""
 
     def node(self, node_id: str) -> Node | None:
         return next((n for n in self.nodes if n.id == node_id), None)
@@ -238,7 +241,13 @@ def extract_graph(text: str) -> KnowledgeGraph:
     extraction = ce.extract(text)
     if extraction is not None and extraction.links:
         return _graph_from_extraction(text, extraction)
-    return _graph_from_rules(text)
+
+    graph = _graph_from_rules(text)
+    if extraction is not None:
+        graph.fallback_reason = f"{extraction.model} returned no usable links"
+    else:
+        graph.fallback_reason = ce.failure_for(text) or ""
+    return graph
 
 
 def _graph_from_extraction(text: str, extraction: ce.Extraction) -> KnowledgeGraph:
@@ -409,7 +418,7 @@ def graph_stats(text: str) -> dict:
     return {
         "source": graph.source,
         "model": graph.model,
-        "fallback_reason": ce.last_failure() if graph.source == "rules" else None,
+        "fallback_reason": graph.fallback_reason or None,
         "subject": graph.subject,
         "aliases": graph.aliases,
         "n_nodes": len(graph.nodes),
@@ -428,6 +437,7 @@ def graph_payload(text: str) -> dict:
     return {
         "source": graph.source,
         "model": graph.model,
+        "fallbackReason": graph.fallback_reason or None,
         "subject": graph.subject,
         "aliases": graph.aliases,
         "nodes": [{"id": n.id, "label": n.label, "kind": n.kind} for n in graph.nodes],
