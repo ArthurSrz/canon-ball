@@ -22,10 +22,22 @@ NOT carried through verbatim (`preserves_claims` is False for this form, by desi
 `graph_stats` reports it honestly). The facts reach the model only as the concepts the
 extractor named and the hierarchy it read between them.
 
-The extractor cuts the prose into claims (knowledge_structurer), reads each claim's cue to
-find its head concept and the concepts hanging off it, and wires each of those as a
-sub-concept of the head. The relation cues still drive the *parsing* — they no longer type
-the edges, because every edge carries the one relation.
+Two readers produce that taxonomy, and `extract_graph` picks between them:
+
+  * **The LLM reader** (`concept_extractor.py`, the default). Two passes against a
+    frontier model: pass 1 names the concepts, pass 2 is handed only those concepts and
+    says which sits under which. `graph.source == "llm"`.
+  * **The rule-based reader** (this module, the fallback). Cuts the prose into claims
+    (knowledge_structurer), reads each claim's cue to find its head concept and the
+    concepts hanging off it, and wires each of those as a sub-concept of the head. The
+    relation cues drive the *parsing* only — they no longer type the edges, because every
+    edge carries the one relation. `graph.source == "rules"`.
+
+The fallback runs whenever the LLM path cannot: no `OPENROUTER_API_KEY`, an unreachable
+host, or a reply that is not the JSON that was asked for. It is deterministic and needs no
+network, which is what keeps the test suite and `--dry-run` working offline. `graph.source`
+and `graph_stats()["source"]` always say which one ran, so a result is never read as
+model-extracted when the rules produced it.
 
     extract_graph(text) -> KnowledgeGraph
     render_graph(graph) -> str          the knowledge-layer rendering fired at the model
@@ -35,6 +47,7 @@ the edges, because every edge carries the one relation.
 import re
 from dataclasses import dataclass, field
 
+import concept_extractor as ce
 import knowledge_structurer as ks
 
 
@@ -120,6 +133,9 @@ class KnowledgeGraph:
     nodes: list[Node] = field(default_factory=list)
     edges: list[Edge] = field(default_factory=list)
     claims: list[ks.Claim] = field(default_factory=list)
+    # Which reader produced this — "llm" or "rules". Never inferred by a caller.
+    source: str = "rules"
+    model: str = ""
 
     def node(self, node_id: str) -> Node | None:
         return next((n for n in self.nodes if n.id == node_id), None)
@@ -218,7 +234,71 @@ def _split_targets(tail: str, split_first: bool = False) -> list[str]:
 
 
 def extract_graph(text: str) -> KnowledgeGraph:
-    """Read prose into a taxonomy. Every claim contributes at least one sousConceptDe edge."""
+    """Read prose into a taxonomy, by LLM where possible and by rule where not."""
+    extraction = ce.extract(text)
+    if extraction is not None and extraction.links:
+        return _graph_from_extraction(text, extraction)
+    return _graph_from_rules(text)
+
+
+def _graph_from_extraction(text: str, extraction: ce.Extraction) -> KnowledgeGraph:
+    """Build the taxonomy from what the two LLM passes named."""
+    knowledge = ks.analyze_knowledge(text)
+    graph = KnowledgeGraph(
+        subject=extraction.subject,
+        aliases=knowledge.aliases,
+        claims=knowledge.claims,
+        source="llm",
+        model=extraction.model,
+    )
+
+    index: dict[str, str] = {}
+
+    def node_id(label: str, is_root: bool = False) -> str:
+        key = _merge_key(label)
+        if key in index:
+            return index[key]
+        new_id = f"{EDGE_PREFIX}{len(graph.nodes)}"
+        graph.nodes.append(Node(id=new_id, label=label, kind=_kind(label, is_root)))
+        index[key] = new_id
+        return new_id
+
+    node_id(extraction.subject, is_root=True)
+    for concept in extraction.concepts:
+        node_id(concept)
+
+    for child, parent in extraction.links:
+        child_id, parent_id = node_id(child), node_id(parent)
+        if child_id == parent_id:
+            continue
+        graph.edges.append(Edge(
+            source=child_id,
+            relation=SUBCONCEPT_RELATION,
+            target=parent_id,
+            claim_index=_claim_for(child, parent, knowledge.claims),
+        ))
+
+    return graph
+
+
+def _claim_for(child: str, parent: str, claims: list[ks.Claim]) -> int:
+    """The sentence a link is most likely to have come from.
+
+    Best-effort grounding, not the model's own attribution: the passes are not asked which
+    sentence a link came from, so this is a lookup over the claims the structurer already
+    cut. It exists so hovering an edge in the graph view still prints a sentence to check
+    the link against.
+    """
+    for needle in (child, parent):
+        lowered = needle.casefold()
+        for claim in claims:
+            if lowered in claim.text.casefold():
+                return claim.index
+    return claims[0].index if claims else 0
+
+
+def _graph_from_rules(text: str) -> KnowledgeGraph:
+    """The deterministic fallback. Every claim contributes at least one sousConceptDe edge."""
     knowledge = ks.analyze_knowledge(text)
     graph = KnowledgeGraph(
         subject=knowledge.subject,
@@ -321,11 +401,15 @@ def graph_stats(text: str) -> dict:
     """Describe the extracted taxonomy — for the setup screen and the report.
 
     `claims_preserved` is False by design for this form: the rendering is the edge list,
-    so the sentences do not travel with it.
+    so the sentences do not travel with it. `source` names the reader that ran, and
+    `fallback_reason` is set when the LLM path was asked for and could not run.
     """
     graph = extract_graph(text)
     rendered = render_graph(graph)
     return {
+        "source": graph.source,
+        "model": graph.model,
+        "fallback_reason": ce.last_failure() if graph.source == "rules" else None,
         "subject": graph.subject,
         "aliases": graph.aliases,
         "n_nodes": len(graph.nodes),
@@ -342,6 +426,8 @@ def graph_payload(text: str) -> dict:
     """The graph as plain JSON — what the setup screen draws before the volley is fired."""
     graph = extract_graph(text)
     return {
+        "source": graph.source,
+        "model": graph.model,
         "subject": graph.subject,
         "aliases": graph.aliases,
         "nodes": [{"id": n.id, "label": n.label, "kind": n.kind} for n in graph.nodes],

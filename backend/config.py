@@ -36,3 +36,8 @@ def neuronpedia_key() -> str:
 
 def hf_key() -> str:
     return os.environ.get("HF_API_KEY", "")
+
+
+def extraction_model() -> str:
+    """OpenRouter slug for the knowledge-layer concept extraction. "" means use the default."""
+    return os.environ.get("KS_EXTRACTION_MODEL", "").strip()
