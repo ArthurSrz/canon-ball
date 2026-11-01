@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { previewStructure } from '../api'
+import KnowledgeGraphView from '../components/KnowledgeGraphView'
 
 const CONTROL_ARMS = [
   { id: "none", name: "Nothing", how: "The control arm fires bare — the classic knowledge-vs-nothing volley." },
@@ -146,6 +147,13 @@ export default function SetupScreen({ data, playful, go, mode, setMode, running,
             {active.how}
           </p>
         </div>
+      </div>
+
+      <div className="field" style={{ marginTop: 36 }}>
+        <div className="field-label" style={{ color: "var(--test)" }}>
+          The graph the test arm is loaded with
+        </div>
+        <KnowledgeGraphView graph={graph} claims={preview?.claims || []} />
       </div>
 
       <div className="nav-row">
