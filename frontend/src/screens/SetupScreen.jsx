@@ -32,7 +32,8 @@ export default function SetupScreen({ data, playful, go, mode, setMode, running,
   const [preview, setPreview] = useState(null)
   const [previewError, setPreviewError] = useState(null)
 
-  // The structurer runs server-side; debounce so typing doesn't hammer it.
+  // The structurer runs server-side, and for the graph form it fires two LLM passes.
+  // A short debounce would bill a frontier call per keystroke, so this one is long.
   useEffect(() => {
     const id = setTimeout(async () => {
       try {
@@ -41,7 +42,7 @@ export default function SetupScreen({ data, playful, go, mode, setMode, running,
       } catch (err) {
         setPreviewError(err.message)
       }
-    }, 400)
+    }, 1200)
     return () => clearTimeout(id)
   }, [knowledge, knowledgeForm])
 
@@ -109,11 +110,18 @@ export default function SetupScreen({ data, playful, go, mode, setMode, running,
               <div className="mc-name">{activeForm?.name || "Knowledge graph"}</div>
               <div className="rail-note" style={{ marginTop: 6 }}>
                 {graph
-                  ? `${graph.nodes.length} nodes · ${graph.edges.length} edges · ` +
+                  ? `${graph.nodes.length} concepts · ${graph.edges.length} edges · ` +
                     `${Object.entries(graphStats?.relations || {})
                         .map(([r, n]) => `${r} ×${n}`).join(", ")}`
-                  : "Reading the prose into a graph…"}
+                  : "Reading the prose into a taxonomy…"}
               </div>
+              {graph && (
+                <div className="rail-note" style={{ marginTop: 4, opacity: 0.7 }}>
+                  {graph.source === "llm"
+                    ? `extracted by ${graph.model}`
+                    : "read by rule — the LLM extractor did not run"}
+                </div>
+              )}
             </div>
           </div>
           <p className="lede" style={{ fontSize: 14, color: "var(--ink)", margin: 0 }}>

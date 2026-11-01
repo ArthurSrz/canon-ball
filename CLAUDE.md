@@ -22,6 +22,7 @@ cd frontend && npm run dev
 Set API keys in `.env` (see `.env.example`):
 - `OPENROUTER_API_KEY` — required for trial generation (gemma-3-4b-it)
 - `NEURONPEDIA_API_KEY` — optional, raises rate limits for Circuit Tracer
+- `KS_EXTRACTION_MODEL` — optional, the OpenRouter slug the two knowledge-layer extraction passes run on (default in `concept_extractor.DEFAULT_EXTRACTION_MODEL`)
 
 ## Architecture
 
@@ -44,7 +45,8 @@ Set API keys in `.env` (see `.env.example`):
 - **`canon_experiment.py`** — Experiment engine. Four injection modes (`system_user`, `interleave`, `template`, `cot_priming`). Uses gemma-3-4b-it via OpenRouter + fastembed for embeddings.
 - **`canon_analysis.py`** — UMAP projection, dispersion metrics, Mann-Whitney U.
 - **`knowledge_structurer.py`** — Turns prose knowledge into structured knowledge. Five forms (`prose`, `bullets`, `typed_facts`, `schema`, `knowledge_graph`). Re-arranges, never rewrites: every claim is carried verbatim. `TEST_ARM_FORM` names the one form the test arm is fired with.
-- **`knowledge_graph.py`** — The KG extractor: reads prose into a **pure taxonomy** — concepts linked by one single relation, `"Concept A" --sousConceptDe--> "Concept B"` (specific → general). The rendering is that edge list and nothing else: no header, no node table, no sentences. Deterministic (no model call). `extract_graph` / `render_graph` / `graph_stats` / `graph_payload`.
+- **`concept_extractor.py`** — The LLM reader, in two passes: pass 1 names the concepts and the subject, pass 2 is handed *only* that concept list and says which concept sits under which. Temperature 0, frontier model via OpenRouter (`KS_EXTRACTION_MODEL`), result cached per (text, model). `resolve_links` enforces what the prompt asks for — unknown endpoints dropped, no self-links, no cycles, orphans hung off the root. Returns `None` (never raises) when there is no key, the host is unreachable, or the reply is not the JSON asked for.
+- **`knowledge_graph.py`** — The KG extractor: reads prose into a **pure taxonomy** — concepts linked by one single relation, `"Concept A" --sousConceptDe--> "Concept B"` (specific → general). The rendering is that edge list and nothing else: no header, no node table, no sentences. `extract_graph` picks the LLM reader first and falls back to its own rule-based reader; `graph.source` is `"llm"` or `"rules"`. `extract_graph` / `render_graph` / `graph_stats` / `graph_payload`.
 - **`neuronpedia_client.py`** — NLA + Circuit Tracer client. Batched explain (16 positions/request cap), attribution graph generation + pruning.
 
 ## Key design details
@@ -56,7 +58,9 @@ Set API keys in `.env` (see `.env.example`):
 - Injection modes are the core experimental variable; **knowledge form** is the second one.
 - **Structure as a variable**: both arms of a volley are rendered from the SAME raw prose by `knowledge_structurer`. `control_knowledge_form="none"` leaves the control arm bare (knowledge vs nothing — the classic volley); `control_knowledge_form="prose"` makes the volley measure what *structure* adds on top of identical facts.
 - **The test arm fires one form: the knowledge graph** (`knowledge_form="knowledge_graph"`, the API and UI default). The setup screen states the form instead of offering a picker; the control arm is still a choice (`none` or `prose`). The other forms stay in the library as control-arm/bench renderings.
-- The structurer and the KG extractor are deterministic: the same prose always renders the same layer. Every form *except* `knowledge_graph` is content-preserving — `preserves_claims()` asserts every claim survives verbatim, which is what licenses reading their dispersion delta as a form effect.
+- **Two readers, one output contract.** The LLM reader (`concept_extractor.py`) runs by default; the rule-based reader in `knowledge_graph.py` is the fallback whenever it cannot (no key, unreachable host, non-JSON reply). Both produce the same shape, and `graph.source` / `graph_stats()["source"]` / the payload always name which one ran — a rule-read graph must never be reported as model-extracted. The setup screen prints it under the form box; `fire_structure_study.py` prints it in the header and the report.
+- **Determinism is now the fallback's property, not the instrument's.** The rule-based reader always renders the same layer from the same prose. The LLM reader does not: the per-(text, model) cache makes it stable *within a process*, but a fresh process may read the prose slightly differently. Fire the volleys of a comparison from one process, or pin the graph, if you need two runs to be comparable.
+- The structurer is content-preserving for every form *except* `knowledge_graph` — `preserves_claims()` asserts every claim survives verbatim, which is what licenses reading their dispersion delta as a form effect.
 - **The `knowledge_graph` form is the deliberate exception.** It renders the taxonomy alone — only `"Concept A" --sousConceptDe--> "Concept B"` lines — so the sentences do not travel with it and `preserves_claims()` is False for it. That is the form being tested: what a bare concept hierarchy does to the model, stripped of the prose it was read from. Relation cues still drive the *parsing* (where a claim's head concept ends and its sub-concepts begin); they no longer type the edges, because every edge carries the one relation.
 - `POST /api/experiment/structure` previews every rendering before firing; the setup screen shows what each arm will be loaded with.
 - `scripts/fire_structure_study.py` fires the three-volley structure study (prose vs nothing, graph vs nothing, graph vs prose) and writes a markdown report. `--dry-run` stubs the model and the embedder (no API key, no network).

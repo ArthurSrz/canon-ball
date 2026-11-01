@@ -144,7 +144,8 @@ def write_report(results: list[dict], stats: dict, path: Path, dry_run: bool) ->
         f"L'extracteur lit {stats['n_claims']} affirmations dans la prose et en tire une "
         f"taxonomie de {stats.get('graph', {}).get('n_nodes', 0)} concepts et "
         f"{stats.get('graph', {}).get('n_edges', 0)} arêtes, toutes de la même relation "
-        f"`sousConceptDe` (du spécifique vers le général). "
+        f"`sousConceptDe` (du spécifique vers le général), "
+        f"{'extraites par ' + stats['graph']['model'] if stats.get('graph', {}).get('source') == 'llm' else 'lues par l’extracteur déterministe (repli : pas de modèle joignable)'}. "
         f"Sujet extrait : **{stats['subject']}**. "
         f"Le bras test n'est chargé que de ces arêtes : les phrases d'origine ne "
         f"l'accompagnent pas.",
@@ -205,7 +206,9 @@ def main():
 
     stats = ks.structure_stats(KNOWLEDGE, ks.TEST_ARM_FORM)
     graph = stats.get("graph", {})
-    print(f"Extractor: {stats['n_claims']} claims → {graph.get('n_nodes', 0)} nodes, "
+    print(f"Extractor [{graph.get('source', 'rules')}"
+          f"{' · ' + graph['model'] if graph.get('source') == 'llm' else ''}]: "
+          f"{stats['n_claims']} claims → {graph.get('n_nodes', 0)} nodes, "
           f"{graph.get('n_edges', 0)} edges, subject '{stats['subject']}', "
           f"relations {graph.get('relations', stats['relations'])}, "
           f"edges-only rendering (verbatim={stats['claims_preserved']})\n", flush=True)

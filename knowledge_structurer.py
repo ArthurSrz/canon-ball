@@ -220,6 +220,8 @@ def structure_stats(text: str, form: str = "prose") -> dict:
         import knowledge_graph as kg
         graph = kg.extract_graph(text)
         stats["graph"] = {
+            "source": graph.source,
+            "model": graph.model,
             "n_nodes": len(graph.nodes),
             "n_edges": len(graph.edges),
             "node_kinds": graph.node_kinds(),
