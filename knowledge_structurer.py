@@ -12,8 +12,10 @@ Five forms, in increasing order of structure:
     bullets         one claim per line
     typed_facts     subject | relation | claim triples
     schema          claims grouped under typed relation keys
-    knowledge_graph nodes + typed edges, each grounded in its verbatim claim
-                    (knowledge_graph.py — the test arm's form)
+    knowledge_graph a pure sousConceptDe taxonomy — concepts and subsumption edges,
+                    and nothing else (knowledge_graph.py — the test arm's form). This is
+                    the one form that does NOT carry the prose through: its rendering is
+                    the edge list, so `preserves_claims` is False for it by design.
 """
 
 import re

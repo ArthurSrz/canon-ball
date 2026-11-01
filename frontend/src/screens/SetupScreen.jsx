@@ -76,7 +76,9 @@ export default function SetupScreen({ data, playful, go, mode, setMode, running,
                 : stats
                   ? `${stats.n_claims} claims · subject “${stats.subject || "—"}” · ` +
                     `${Object.entries(stats.relations).map(([r, n]) => `${r} ×${n}`).join(", ")}` +
-                    `${stats.claims_preserved ? "" : " · ⚠ wording altered"}`
+                    `${knowledgeForm === "knowledge_graph"
+                        ? " · taxonomy only — the sentences are not carried"
+                        : stats.claims_preserved ? "" : " · ⚠ wording altered"}`
                   : "Reading the claims…"}
             </div>
           </div>

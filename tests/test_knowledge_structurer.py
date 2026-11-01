@@ -17,15 +17,24 @@ KNOWLEDGE = (
 )
 
 
-def test_every_claim_survives_verbatim_in_every_form():
-    """The whole experiment rests on this: only the form changes, never the facts."""
+def test_every_claim_survives_verbatim_in_every_prose_carrying_form():
+    """Only the form changes, never the facts — for every form that still carries prose."""
     claims = ks.split_claims(KNOWLEDGE)
     assert len(claims) == 4
 
     for form in ks.STRUCTURE_FORMS:
+        if form == "knowledge_graph":
+            continue   # the taxonomy is edges only — see test_knowledge_graph.py
         rendered = ks.structure_knowledge(KNOWLEDGE, form)
         for claim in claims:
             assert claim in rendered, f"{form} dropped or rewrote: {claim!r}"
+
+
+def test_the_knowledge_graph_form_is_the_one_that_leaves_the_prose_behind():
+    """The test arm's form renders a bare sousConceptDe taxonomy, not the sentences."""
+    rendered = ks.structure_knowledge(KNOWLEDGE, ks.TEST_ARM_FORM)
+    assert not ks.preserves_claims(KNOWLEDGE, rendered)
+    assert all(" --sousConceptDe--> " in line for line in rendered.splitlines())
 
 
 def test_semicolons_split_into_separate_claims():

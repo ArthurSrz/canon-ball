@@ -1,5 +1,6 @@
-"""Test that the KG extractor reads prose into a graph without rewriting a single claim."""
+"""Test that the KG extractor reads prose into a pure sousConceptDe taxonomy."""
 
+import re
 import sys
 from pathlib import Path
 
@@ -17,6 +18,9 @@ KNOWLEDGE = (
 )
 
 
+EDGE_LINE = re.compile(r'^"([^"]+)" --sousConceptDe--> "([^"]+)"$')
+
+
 def _labels(graph):
     return [n.label for n in graph.nodes]
 
@@ -26,12 +30,35 @@ def test_the_graph_is_the_test_arm_s_only_form():
     assert "knowledge_graph" in ks.STRUCTURE_FORMS
 
 
-def test_every_claim_survives_verbatim_in_the_rendered_graph():
-    """The whole experiment rests on this: the graph is laid over the facts, not instead of them."""
+def test_the_rendering_is_nothing_but_subconcept_edges():
+    """The form under test: a bare hierarchy of concepts, one relation, nothing else."""
     rendered = ks.structure_knowledge(KNOWLEDGE, "knowledge_graph")
+    labels = {n.label for n in kg.extract_graph(KNOWLEDGE).nodes}
+    lines = rendered.splitlines()
+    assert lines
+    for line in lines:
+        match = EDGE_LINE.match(line)
+        assert match, f"not a sousConceptDe edge: {line!r}"
+        assert match.group(1) in labels and match.group(2) in labels
+    assert len(set(lines)) == len(lines), "the same edge was printed twice"
+
+
+def test_the_rendering_drops_the_sentences_on_purpose():
+    """The taxonomy stands in for the prose — that is the trade this form makes."""
+    rendered = ks.structure_knowledge(KNOWLEDGE, "knowledge_graph")
+    assert not ks.preserves_claims(KNOWLEDGE, rendered)
     for claim in ks.split_claims(KNOWLEDGE):
-        assert claim in rendered, f"the graph dropped or rewrote: {claim!r}"
-    assert ks.preserves_claims(KNOWLEDGE, rendered)
+        assert claim not in rendered
+
+
+def test_every_edge_points_from_the_specific_to_the_general():
+    graph = kg.extract_graph(KNOWLEDGE)
+    assert kg.SUBCONCEPT_RELATION == "sousConceptDe"
+    assert {e.relation for e in graph.edges} == {kg.SUBCONCEPT_RELATION}
+    root = graph.nodes[0]
+    ice = next(n for n in graph.nodes if n.label == "ice climbing")
+    assert any(e.source == ice.id and e.target == root.id for e in graph.edges)
+    assert not any(e.source == root.id and e.target == ice.id for e in graph.edges)
 
 
 def test_every_claim_contributes_at_least_one_edge():
@@ -59,12 +86,12 @@ def test_the_head_subject_is_a_single_node_aliases_and_all():
 
 
 def test_bare_pronouns_resolve_back_to_the_head_subject():
-    """"It emerged in the Alps" hangs off Mountaineering, not off a node called "It"."""
+    """"It emerged in the Alps" hangs under Mountaineering, not under a node called "It"."""
     graph = kg.extract_graph(KNOWLEDGE)
     root = graph.nodes[0]
     assert root.label == "Mountaineering"
-    origin = next(e for e in graph.edges if e.relation == "origin")
-    assert origin.source == root.id
+    alps = next(n for n in graph.nodes if n.label.startswith("Alps"))
+    assert any(e.source == alps.id and e.target == root.id for e in graph.edges)
     assert not any(n.label.lower() in ("it", "its") for n in graph.nodes)
 
 
@@ -73,10 +100,11 @@ def test_a_possessive_pronoun_keeps_its_noun_and_takes_the_subject():
     assert "Mountaineering's principal hazards" in _labels(graph)
 
 
-def test_a_list_hangs_off_its_claim_as_composition():
+def test_a_list_wires_every_item_under_the_concept_it_hangs_off():
     graph = kg.extract_graph(KNOWLEDGE)
-    composed = {graph.node(e.target).label for e in graph.edges if e.relation == "composition"}
-    assert {"rock climbing", "ice climbing", "ski touring"} <= composed
+    root = graph.nodes[0].id
+    under_root = {graph.node(e.source).label for e in graph.edges if e.target == root}
+    assert {"rock climbing", "ice climbing", "ski touring"} <= under_root
 
 
 def test_nodes_are_typed_off_their_labels():
@@ -89,14 +117,14 @@ def test_nodes_are_typed_off_their_labels():
     assert kinds["mountain"] == "concept"
 
 
-def test_the_graph_stays_connected_to_its_subject():
-    """A claim with its own subject is still attached to the head subject."""
+def test_the_taxonomy_stays_connected_to_its_subject():
+    """A claim with its own subject is still hung under the head subject."""
     graph = kg.extract_graph(KNOWLEDGE)
     root = graph.nodes[0].id
-    incoming = {e.target for e in graph.edges}
+    parented = {e.source for e in graph.edges}
     orphans = [n.label for n in graph.nodes
-               if n.id != root and n.id not in incoming
-               and any(e.source == n.id for e in graph.edges)]
+               if n.id != root and n.id not in parented
+               and any(e.target == n.id for e in graph.edges)]
     assert orphans == []
 
 
@@ -106,7 +134,7 @@ def test_targets_merge_onto_one_node_when_they_name_the_same_thing():
                              "It requires the Ice Climbing.")
     assert _labels(graph).count("ice climbing") == 1
     shared = next(n for n in graph.nodes if n.label == "ice climbing")
-    assert len({e.claim_index for e in graph.edges if e.target == shared.id}) == 2
+    assert len({e.claim_index for e in graph.edges if e.source == shared.id}) == 2
 
 
 def test_empty_prose_yields_an_empty_rendering():
@@ -114,26 +142,14 @@ def test_empty_prose_yields_an_empty_rendering():
     assert kg.render_graph(kg.extract_graph("")) == ""
 
 
-def test_rendering_names_its_nodes_before_it_wires_them():
-    rendered = ks.structure_knowledge(KNOWLEDGE, "knowledge_graph")
-    assert rendered.splitlines()[0] == "knowledge graph: Mountaineering"
-    assert rendered.index("\nNODES") < rendered.index("\nEDGES")
-    # Every edge references declared node ids.
-    ids = {n.id for n in kg.extract_graph(KNOWLEDGE).nodes}
-    for line in rendered.splitlines():
-        stripped = line.strip()
-        if "-[" in stripped and "]->" in stripped:
-            source, target = stripped.split(" -[")[0], stripped.split("]-> ")[1]
-            assert source in ids and target in ids
-
-
-def test_stats_describe_the_graph_the_setup_screen_shows():
+def test_stats_describe_the_taxonomy_the_setup_screen_shows():
     stats = kg.graph_stats(KNOWLEDGE)
     assert stats["subject"] == "Mountaineering"
     assert stats["n_nodes"] > 0 and stats["n_edges"] > 0
-    assert sum(stats["relations"].values()) == stats["n_edges"]
+    assert stats["relations"] == {"sousConceptDe": stats["n_edges"]}
     assert sum(stats["node_kinds"].values()) == stats["n_nodes"]
-    assert stats["claims_preserved"] is True
+    # False by design: the edge list is the whole rendering, the sentences stay behind.
+    assert stats["claims_preserved"] is False
 
 
 def test_structure_stats_carries_the_graph_for_the_graph_form():
