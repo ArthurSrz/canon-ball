@@ -141,14 +141,13 @@ def write_report(results: list[dict], stats: dict, path: Path, dry_run: bool) ->
         f"Seule la *forme* de la couche de connaissance change. "
         f"{results[0]['n_trials']} essais par bras.",
         "",
-        f"L'extracteur lit {stats['n_claims']} affirmations dans la prose et en tire un graphe "
-        f"de {stats.get('graph', {}).get('n_nodes', 0)} nœuds et "
-        f"{stats.get('graph', {}).get('n_edges', 0)} arêtes, typées par "
-        f"{len(stats.get('graph', {}).get('relations', stats['relations']))} relations "
-        f"({', '.join(f'{k} ×{v}' for k, v in stats.get('graph', {}).get('relations', stats['relations']).items())}). "
+        f"L'extracteur lit {stats['n_claims']} affirmations dans la prose et en tire une "
+        f"taxonomie de {stats.get('graph', {}).get('n_nodes', 0)} concepts et "
+        f"{stats.get('graph', {}).get('n_edges', 0)} arêtes, toutes de la même relation "
+        f"`sousConceptDe` (du spécifique vers le général). "
         f"Sujet extrait : **{stats['subject']}**. "
-        f"Les affirmations sont reportées mot pour mot : "
-        f"{'aucune n’est réécrite' if stats['claims_preserved'] else '⚠️ certaines ont été altérées'}.",
+        f"Le bras test n'est chargé que de ces arêtes : les phrases d'origine ne "
+        f"l'accompagnent pas.",
         "",
         "### Résultats",
         "",
@@ -209,7 +208,7 @@ def main():
     print(f"Extractor: {stats['n_claims']} claims → {graph.get('n_nodes', 0)} nodes, "
           f"{graph.get('n_edges', 0)} edges, subject '{stats['subject']}', "
           f"relations {graph.get('relations', stats['relations'])}, "
-          f"verbatim={stats['claims_preserved']}\n", flush=True)
+          f"edges-only rendering (verbatim={stats['claims_preserved']})\n", flush=True)
 
     print(f"Firing {len(VOLLEYS)} volleys × {args.n * 2} shots, mode '{args.mode}':", flush=True)
     results = [fire_volley(label, ctrl, test, args.n, args.mode)

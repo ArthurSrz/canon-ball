@@ -1,7 +1,11 @@
 import React, { useMemo, useState } from 'react'
 
 /**
- * Draws the graph the test arm is loaded with — a radial tree rooted on the head subject.
+ * Draws the taxonomy the test arm is loaded with — a radial tree rooted on the head subject.
+ *
+ * Every edge carries the one relation, `sousConceptDe`, and runs from the specific to the
+ * general: an edge says its SOURCE is a sub-concept of its TARGET. The tree is therefore
+ * laid out against the arrows — a node's parent is the target of the first edge leaving it.
  *
  * The point of the drawing is verification, not decoration: hovering any node or edge
  * lights up every edge the same claim produced and prints that claim verbatim underneath,
@@ -26,22 +30,24 @@ function truncate(label) {
   return label.length > MAX_LABEL ? label.slice(0, MAX_LABEL - 1) + "…" : label
 }
 
-/** Parent every node by the first edge that reaches it, then lay the tree out radially. */
+/** Parent every node by the first edge that leaves it, then lay the tree out radially. */
 function layout(graph) {
   const nodes = graph?.nodes || []
   const edges = graph?.edges || []
   if (!nodes.length) return { placed: [], links: [], root: null }
 
-  const firstIn = new Map()
-  for (const e of edges) if (!firstIn.has(e.target)) firstIn.set(e.target, e)
+  // A --sousConceptDe--> B means A sits under B, so a node's parent is the target of the
+  // first edge leaving it, and the root is the one concept that is under nothing.
+  const firstUp = new Map()
+  for (const e of edges) if (!firstUp.has(e.source)) firstUp.set(e.source, e)
 
-  const hasOut = new Set(edges.map(e => e.source))
-  const root = nodes.find(n => !firstIn.has(n.id) && hasOut.has(n.id)) || nodes[0]
+  const hasIn = new Set(edges.map(e => e.target))
+  const root = nodes.find(n => !firstUp.has(n.id) && hasIn.has(n.id)) || nodes[0]
 
   const children = new Map()
   for (const n of nodes) {
     if (n.id === root.id) continue
-    const parent = firstIn.get(n.id)?.source ?? root.id   // orphans hang off the root
+    const parent = firstUp.get(n.id)?.target ?? root.id   // orphans hang off the root
     if (!children.has(parent)) children.set(parent, [])
     children.get(parent).push(n.id)
   }
@@ -82,7 +88,7 @@ function layout(graph) {
   const placed = nodes.filter(n => pos.has(n.id)).map(n => ({ ...n, ...pos.get(n.id) }))
   const links = edges
     .filter(e => pos.has(e.source) && pos.has(e.target))
-    .map(e => ({ ...e, a: pos.get(e.source), b: pos.get(e.target), tree: firstIn.get(e.target) === e }))
+    .map(e => ({ ...e, a: pos.get(e.source), b: pos.get(e.target), tree: firstUp.get(e.source) === e }))
 
   return { placed, links, root }
 }
@@ -120,11 +126,13 @@ export default function KnowledgeGraphView({ graph, claims = [] }) {
                 strokeDasharray={e.tree ? undefined : "3 3"}
                 opacity={lit(e.claimIndex) ? (focus === e.claimIndex ? 1 : 0.55) : 0.1}
               />
+              {/* every edge carries the same relation, so it is only worth printing
+                  on the ones under the pointer */}
               <text
                 x={e.a.x + (e.b.x - e.a.x) * 0.68} y={e.a.y + (e.b.y - e.a.y) * 0.68 - 4}
                 textAnchor="middle" fontFamily="var(--mono)" fontSize="9"
-                fill={focus === e.claimIndex ? "var(--test)" : "var(--control)"}
-                opacity={focus === e.claimIndex ? 1 : (focus === null ? 0.5 : 0.08)}
+                fill="var(--test)"
+                opacity={focus === e.claimIndex ? 1 : 0}
               >{e.relation}</text>
             </g>
           ))}
@@ -141,8 +149,8 @@ export default function KnowledgeGraphView({ graph, claims = [] }) {
             return (
               <g key={n.id} opacity={touching ? 1 : 0.15}
                 onMouseEnter={() => {
-                  const inbound = links.find(e => e.target === n.id)
-                  setFocus(inbound ? inbound.claimIndex : null)
+                  const up = links.find(e => e.source === n.id)
+                  setFocus(up ? up.claimIndex : null)
                 }}
                 style={{ cursor: "crosshair" }}>
                 <circle cx={n.x} cy={n.y} r={r} fill={isRoot ? "var(--test)" : style.fill}
@@ -175,6 +183,7 @@ export default function KnowledgeGraphView({ graph, claims = [] }) {
             </span>
           ))}
           <span style={{ opacity: 0.6 }}>┄ a node two claims share</span>
+          <span style={{ marginLeft: 12, opacity: 0.6 }}>every edge: →&nbsp;sousConceptDe</span>
         </span>
         <span style={{ fontFamily: "var(--mono)", fontSize: 11, flex: 1, minWidth: 260 }}>
           {claim

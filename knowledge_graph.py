@@ -1,17 +1,31 @@
 """
 Canon Ball Knowledge Graph Extractor
-Reads a free-prose knowledge layer into a typed graph: nodes, typed edges, and the
-verbatim claim every edge was read from.
+Reads a free-prose knowledge layer into a *taxonomy*: concepts, and one single relation
+between them — subsumption.
 
-Deterministic — no model call, no network. The same prose always yields the same graph,
+The extracted layer is composed of nothing but lines of the shape
+
+    "Concept A" --sousConceptDe--> "Concept B"
+
+read as *A is a sub-concept of B*: the arrow runs from the specific to the general. There
+is no header, no node table, and no prose — the rendering is the edge list and nothing
+else. That is the whole point of the form: the test arm is loaded with a bare hierarchy of
+concepts, so what the volley measures is what a *taxonomy* does to the model, stripped of
+every sentence it was read from.
+
+Deterministic — no model call, no network. The same prose always yields the same taxonomy,
 which is what lets a volley fired at `knowledge_graph` be compared with one fired at
-`prose`: the two arms carry the same facts, so the dispersion delta reads as a *form*
-effect rather than a content effect.
+`prose`.
 
-The extractor never rewrites a claim. It cuts the prose into claims (knowledge_structurer),
-types each claim by the relation cue that appears earliest in it, splits the claim into a
-source node and one or more target nodes, and prints the claim verbatim under its edges as
-the grounding line. Nothing in the graph replaces the prose; the graph is laid *over* it.
+Note the trade this form makes: because the rendering drops the sentences, the claims are
+NOT carried through verbatim (`preserves_claims` is False for this form, by design, and
+`graph_stats` reports it honestly). The facts reach the model only as the concepts the
+extractor named and the hierarchy it read between them.
+
+The extractor cuts the prose into claims (knowledge_structurer), reads each claim's cue to
+find its head concept and the concepts hanging off it, and wires each of those as a
+sub-concept of the head. The relation cues still drive the *parsing* — they no longer type
+the edges, because every edge carries the one relation.
 
     extract_graph(text) -> KnowledgeGraph
     render_graph(graph) -> str          the knowledge-layer rendering fired at the model
@@ -77,7 +91,9 @@ MIN_NODE_CHARS = 3
 MAX_NODE_LABEL_CHARS = 80
 MAX_TARGETS_PER_CLAIM = 6
 
-LIST_RELATION = "composition"
+# The only relation the extracted taxonomy carries. Read "A --sousConceptDe--> B"
+# as *A is a sub-concept of B*: the arrow runs specific → general.
+SUBCONCEPT_RELATION = "sousConceptDe"
 
 
 @dataclass
@@ -177,15 +193,15 @@ def _claim_source(head: str, subject: str) -> str:
     return head
 
 
-def _split_targets(tail: str, split_first: bool = False) -> list[tuple[str, bool]]:
-    """Cut an object span into targets. Each is (span, came_after_a_list_cue).
+def _split_targets(tail: str, split_first: bool = False) -> list[str]:
+    """Cut an object span into the concepts it names.
 
     The first comma-segment is kept whole — "sporting and leisure activities" is one
     thing, not two. Later segments are split on "and", because that is where prose
     actually enumerates. `split_first` lifts that guard for a claim whose own cue already
     enumerates ("includes ice climbing and ski touring").
     """
-    targets: list[tuple[str, bool]] = []
+    targets: list[str] = []
     in_list = False
 
     for position, segment in enumerate(s for s in re.split(r",\s*", tail) if s.strip()):
@@ -196,13 +212,13 @@ def _split_targets(tail: str, split_first: bool = False) -> list[tuple[str, bool
         for part in parts:
             label = _clean_span(part)
             if len(label) >= MIN_NODE_CHARS:
-                targets.append((label, in_list))
+                targets.append(label)
 
     return targets[:MAX_TARGETS_PER_CLAIM]
 
 
 def extract_graph(text: str) -> KnowledgeGraph:
-    """Read prose into a typed graph. Every claim contributes at least one edge."""
+    """Read prose into a taxonomy. Every claim contributes at least one sousConceptDe edge."""
     knowledge = ks.analyze_knowledge(text)
     graph = KnowledgeGraph(
         subject=knowledge.subject,
@@ -237,35 +253,37 @@ def extract_graph(text: str) -> KnowledgeGraph:
         if match and relation in CUE_IS_OBJECT:
             cued = _clean_span(match.group(0))
             if len(cued) >= MIN_NODE_CHARS:
-                targets.insert(0, (cued, False))
+                targets.insert(0, cued)
 
         # A cue sitting at the end of a claim ("… is its conventional starting point")
         # leaves no object span. The thing the claim names is then on the cue's left, so
         # the claim hangs off the head subject instead — no claim enters the graph mute.
         if not targets:
             fallback = _clean_span(head_raw) or _clean_span(claim.text)
-            targets = [(fallback or claim.text[:MAX_NODE_LABEL_CHARS], False)]
+            targets = [fallback or claim.text[:MAX_NODE_LABEL_CHARS]]
             source_label = knowledge.subject or source_label
 
         if len(source_label) < MIN_NODE_CHARS:
             source_label = knowledge.subject or claim.text[:MAX_NODE_LABEL_CHARS]
-        source = node_id(source_label, is_root=source_label == knowledge.subject)
+        parent = node_id(source_label, is_root=source_label == knowledge.subject)
 
-        # Hang a claim's own subject ("its principal hazards") off the head subject, so
-        # the graph stays one connected thing rather than a scatter of little stars.
+        # A claim's own subject ("its principal hazards") is itself a sub-concept of the
+        # head subject, so the taxonomy stays one tree rather than a scatter of little
+        # stars. Only wired when that concept has no parent of its own yet.
         root = index.get(_merge_key(knowledge.subject)) if knowledge.subject else None
-        if root and source != root and not any(e.target == source for e in graph.edges):
-            graph.edges.append(Edge(source=root, relation=relation,
-                                    target=source, claim_index=claim.index))
+        if root and parent != root and not any(e.source == parent for e in graph.edges):
+            graph.edges.append(Edge(source=parent, relation=SUBCONCEPT_RELATION,
+                                    target=root, claim_index=claim.index))
 
-        for label, from_list in targets:
-            target = node_id(label)
-            if target == source:
+        # Everything the claim hangs off its head is a sub-concept of that head.
+        for label in targets:
+            child = node_id(label)
+            if child == parent:
                 continue
             graph.edges.append(Edge(
-                source=source,
-                relation=LIST_RELATION if from_list else relation,
-                target=target,
+                source=child,
+                relation=SUBCONCEPT_RELATION,
+                target=parent,
                 claim_index=claim.index,
             ))
 
@@ -273,32 +291,38 @@ def extract_graph(text: str) -> KnowledgeGraph:
 
 
 def render_graph(graph: KnowledgeGraph) -> str:
-    """Render the graph as the knowledge layer the canon is actually loaded with."""
+    """Render the taxonomy as the knowledge layer the canon is actually loaded with.
+
+    Edges only: one `"Concept A" --sousConceptDe--> "Concept B"` per line, in claim order,
+    identical pairs collapsed. No header, no node table, no prose — the layer *is* the
+    hierarchy.
+    """
     if not graph.claims:
         return ""
 
-    lines = [f"knowledge graph: {graph.subject or 'subject'}"]
-    if graph.aliases:
-        lines.append(f"aliases: {', '.join(graph.aliases)}")
-    lines.append(f"nodes: {len(graph.nodes)} | edges: {len(graph.edges)} | "
-                 f"claims: {len(graph.claims)}")
-
-    lines += ["", "NODES"]
-    lines += [f"  {n.id}  {n.label}  ({n.kind})" for n in graph.nodes]
-
-    lines += ["", "EDGES"]
+    lines: list[str] = []
+    seen: set[tuple[str, str]] = set()
     grouped = graph.edges_by_claim()
     for claim in graph.claims:
         for edge in grouped.get(claim.index, []):
-            lines.append(f"  {edge.source} -[{edge.relation}]-> {edge.target}")
-        # The claim, verbatim. The graph is laid over the prose, it does not replace it.
-        lines.append(f"    source: {claim.text}")
+            child, parent = graph.node(edge.source), graph.node(edge.target)
+            if child is None or parent is None:
+                continue
+            pair = (child.label, parent.label)
+            if pair in seen:
+                continue
+            seen.add(pair)
+            lines.append(f'"{child.label}" --{edge.relation}--> "{parent.label}"')
 
     return "\n".join(lines)
 
 
 def graph_stats(text: str) -> dict:
-    """Describe the extracted graph — for the setup screen and the report."""
+    """Describe the extracted taxonomy — for the setup screen and the report.
+
+    `claims_preserved` is False by design for this form: the rendering is the edge list,
+    so the sentences do not travel with it.
+    """
     graph = extract_graph(text)
     rendered = render_graph(graph)
     return {
