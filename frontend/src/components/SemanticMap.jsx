@@ -162,10 +162,9 @@ export default function SemanticMap({
           : qbez(ORIGIN_SVG, apex, shot.svg, eased)
 
         const isLanded = ballT >= 1
-        const isPicked =
-          picked &&
-          picked.group === shot.group &&
-          picked.idx === shot.idx
+        // `picked` holds one slot per arm — a control and a test can be lit together.
+        const slot = picked && picked[shot.group]
+        const isPicked = !!slot && slot.idx === shot.idx
         const r = isPicked ? 5.5 : 3.5
 
         return (
