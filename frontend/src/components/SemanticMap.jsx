@@ -28,6 +28,13 @@ function easeOutCubic(x) {
 
 /* ---------- coordinate mapping ---------- */
 
+// One volley lasts this long, and it is NOT a loop: the shots land and stay put, so they
+// can be clicked. "Replay volley" bumps runKey to fire again.
+const VOLLEY_SECONDS = 2.8
+const STAGGER = 0.45       // share of the volley spent launching shots, first to last
+const FLIGHT = 0.55        // share of the volley one shot spends in the air
+const HIT_RADIUS = 8       // a landed shot is 3.5 units wide — this is what you can hit
+
 const MARGIN = { top: 24, right: 20, bottom: 28, left: 32 }
 const W = 420
 const H = 300
@@ -56,33 +63,30 @@ export default function SemanticMap({
   onPick = null,
   picked = null,
 }) {
-  const [tick, setTick] = useState(0)
+  const [progress, setProgress] = useState(motion ? 0 : 1)   // 0 = loaded, 1 = all landed
   const [hover, setHover] = useState(null)
   const rafRef = useRef(null)
   const startRef = useRef(null)
   const svgRef = useRef(null)
 
-  const cycleDuration = 2.8
-
-  // animation loop
+  // The volley runs once and settles. It used to loop, which kept every shot moving and
+  // made them impossible to click.
   useEffect(() => {
-    if (!motion) {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current)
-      return
-    }
+    if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null }
+    if (!motion) { setProgress(1); return }
+    setProgress(0)
     startRef.current = performance.now()
     const loop = (now) => {
-      const elapsed = (now - startRef.current) / 1000
-      setTick(elapsed)
-      rafRef.current = requestAnimationFrame(loop)
+      const p = Math.min(1, (now - startRef.current) / 1000 / VOLLEY_SECONDS)
+      setProgress(p)
+      rafRef.current = p < 1 ? requestAnimationFrame(loop) : null
     }
     rafRef.current = requestAnimationFrame(loop)
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
+      rafRef.current = null
     }
   }, [motion, runKey])
-
-  const cycleT = motion ? Math.min(1, (tick % cycleDuration) / cycleDuration) : 1
 
   // build shot arrays with SVG positions
   // data entries have {centroid: {x,y}, chunks: [{x,y}], output}
@@ -143,8 +147,9 @@ export default function SemanticMap({
       if (!show) return null
       const n = shots.length
       return shots.map((shot, i) => {
-        const delay = i / (n + 1)
-        const ballT = motion ? Math.max(0, Math.min(1, (cycleT - delay * 0.6) / 0.5)) : 1
+        // STAGGER + FLIGHT === 1, so the last shot lands exactly as the volley ends.
+        const delay = n > 1 ? (i / (n - 1)) * STAGGER : 0
+        const ballT = motion ? Math.max(0, Math.min(1, (progress - delay) / FLIGHT)) : 1
         const eased = easeOutCubic(ballT)
 
         // arc from cannon origin to landing point
@@ -169,27 +174,37 @@ export default function SemanticMap({
             {!isLanded && ballT > 0 && (
               <circle cx={pos.x} cy={pos.y} r={r + 3} fill={color} opacity={0.1} />
             )}
-            {/* shot dot */}
+            {/* shot dot, with a hit area wide enough for a pointer */}
             {ballT > 0 && (
-              <circle
-                cx={pos.x}
-                cy={pos.y}
-                r={r}
-                fill={color}
-                opacity={isLanded ? 0.75 : 0.9}
-                stroke={isPicked ? 'var(--ink)' : 'none'}
-                strokeWidth={isPicked ? 2 : 0}
+              <g
                 style={{ cursor: onPick ? 'pointer' : 'default' }}
-                onClick={() => onPick && onPick({ group: shot.group, idx: shot.idx })}
+                onClick={() => onPick && onPick({
+                  group: shot.group,
+                  idx: shot.idx,
+                  warm: shot.group === 'test',
+                  output: shot.output,
+                })}
                 onMouseEnter={() => setHover(shot)}
                 onMouseLeave={() => setHover(null)}
-              />
+              >
+                <circle cx={pos.x} cy={pos.y} r={HIT_RADIUS} fill="transparent" />
+                <circle
+                  cx={pos.x}
+                  cy={pos.y}
+                  r={r}
+                  fill={color}
+                  opacity={isLanded ? 0.75 : 0.9}
+                  stroke={isPicked ? 'var(--ink)' : 'none'}
+                  strokeWidth={isPicked ? 2 : 0}
+                  pointerEvents="none"
+                />
+              </g>
             )}
           </g>
         )
       })
     },
-    [cycleT, motion, picked, onPick],
+    [progress, motion, picked, onPick],
   )
 
   // tooltip
@@ -321,7 +336,7 @@ export default function SemanticMap({
 
       {/* cannon in bottom-left */}
       <Cannon x={ORIGIN_SVG.x} y={ORIGIN_SVG.y} scale={0.55} playful={playful}
-        charge={motion && cycleT < 0.06 ? Math.sin((cycleT / 0.06) * Math.PI) : 0} />
+        charge={motion && progress < 0.06 ? Math.sin((progress / 0.06) * Math.PI) : 0} />
 
       {/* tooltip overlay */}
       {tooltip}
