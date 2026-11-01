@@ -205,3 +205,77 @@ def test_without_the_llm_the_graph_falls_back_to_the_rules_and_says_so(monkeypat
     graph = kg.extract_graph(KNOWLEDGE)
     assert graph.source == "rules"
     assert graph.edges and {e.relation for e in graph.edges} == {kg.SUBCONCEPT_RELATION}
+
+
+# ───────────────────────── why a fallback happened ─────────────────────────
+
+def test_the_reason_reaches_the_payload_the_setup_screen_reads(monkeypatch):
+    """A fallback with no stated reason is a fallback nobody can debug."""
+    monkeypatch.setattr(ce, "_openrouter_key", lambda: "")
+    payload = kg.graph_payload(KNOWLEDGE)
+    assert payload["source"] == "rules"
+    assert "OPENROUTER_API_KEY" in payload["fallbackReason"]
+
+
+def test_the_reason_names_the_model_when_the_call_itself_failed(monkeypatch):
+    monkeypatch.setattr(ce, "_openrouter_key", lambda: "test-key")
+    monkeypatch.setattr(ce, "_chat_json", lambda *a: (_ for _ in ()).throw(
+        RuntimeError("OpenRouter 400: unknown model")))
+    payload = kg.graph_payload(KNOWLEDGE)
+    assert payload["source"] == "rules"
+    assert ce.extraction_model() in payload["fallbackReason"]
+    assert "400" in payload["fallbackReason"]
+
+
+def test_a_reason_belongs_to_its_own_text_not_to_whatever_failed_last(monkeypatch):
+    """Two previews run concurrently; one must not inherit the other's excuse."""
+    monkeypatch.setattr(ce, "_openrouter_key", lambda: "test-key")
+    monkeypatch.setattr(ce, "_chat_json",
+                        lambda *a: (_ for _ in ()).throw(RuntimeError("boom")))
+    ce.extract("Alpinism is a sport practised in the Alps.")
+    assert ce.failure_for("Alpinism is a sport practised in the Alps.")
+    assert ce.failure_for("Something else entirely, never attempted.") is None
+
+
+def _age_failure(text):
+    """Push this text's recorded failure past its TTL, without touching the clock."""
+    key = (text.strip(), ce.extraction_model())
+    reason, when = ce._failures[key]
+    ce._failures[key] = (reason, when - ce.FAILURE_TTL_SECONDS - 1)
+
+
+# ───────────────────────── a failure must not be sticky ─────────────────────────
+
+def test_a_failure_is_not_retried_while_it_is_fresh(monkeypatch):
+    calls = []
+    monkeypatch.setattr(ce, "_openrouter_key", lambda: "test-key")
+    monkeypatch.setattr(ce, "_chat_json",
+                        lambda *a: calls.append(1) or (_ for _ in ()).throw(RuntimeError("down")))
+    assert ce.extract(KNOWLEDGE) is None
+    assert ce.extract(KNOWLEDGE) is None
+    assert len(calls) == 1, "a dead host was hammered once per preview"
+
+
+def test_a_failure_expires_so_fixing_the_config_takes_effect(monkeypatch):
+    """The bug this guards: a cached failure meant adding the key never helped until
+    the server was restarted."""
+    monkeypatch.setattr(ce, "_openrouter_key", lambda: "test-key")
+    monkeypatch.setattr(ce, "_chat_json",
+                        lambda *a: (_ for _ in ()).throw(RuntimeError("down")))
+    assert ce.extract(KNOWLEDGE) is None
+
+    # the operator fixes whatever was wrong, and the recorded failure ages past its TTL
+    monkeypatch.setattr(ce, "_chat_json", lambda prompt, *a:
+                        CONCEPTS_REPLY if "CONCEPTS:" not in prompt else LINKS_REPLY)
+    _age_failure(KNOWLEDGE)
+
+    extraction = ce.extract(KNOWLEDGE)
+    assert extraction is not None and extraction.links
+
+
+def test_a_success_clears_the_recorded_failure(stub_model):
+    key = (KNOWLEDGE.strip(), ce.extraction_model())
+    ce._failures[key] = ("an expired excuse", 0.0)
+    assert ce.extract(KNOWLEDGE) is not None
+    assert key not in ce._failures
+    assert ce.failure_for(KNOWLEDGE) is None

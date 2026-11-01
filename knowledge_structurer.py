@@ -222,6 +222,7 @@ def structure_stats(text: str, form: str = "prose") -> dict:
         stats["graph"] = {
             "source": graph.source,
             "model": graph.model,
+            "fallback_reason": graph.fallback_reason or None,
             "n_nodes": len(graph.nodes),
             "n_edges": len(graph.edges),
             "node_kinds": graph.node_kinds(),

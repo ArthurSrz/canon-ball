@@ -162,9 +162,11 @@ def test_structure_stats_carries_the_graph_for_the_graph_form():
 
 def test_payload_is_plain_json_shaped():
     payload = kg.graph_payload(KNOWLEDGE)
-    assert set(payload) == {"source", "model", "subject", "aliases", "nodes", "edges"}
-    # With no key in the environment the rule-based reader is what ran, and says so.
+    assert set(payload) == {"source", "model", "fallbackReason",
+                            "subject", "aliases", "nodes", "edges"}
+    # With no key in the environment the rule-based reader is what ran, and says why.
     assert payload["source"] == "rules"
+    assert "OPENROUTER_API_KEY" in payload["fallbackReason"]
     assert set(payload["nodes"][0]) == {"id", "label", "kind"}
     assert set(payload["edges"][0]) == {"source", "relation", "target", "claimIndex"}
 

@@ -122,6 +122,11 @@ export default function SetupScreen({ data, playful, go, mode, setMode, running,
                     : "read by rule — the LLM extractor did not run"}
                 </div>
               )}
+              {graph && graph.source !== "llm" && graph.fallbackReason && (
+                <div className="rail-note" style={{ marginTop: 4, color: "var(--test)" }}>
+                  ↳ {graph.fallbackReason}
+                </div>
+              )}
             </div>
           </div>
           <p className="lede" style={{ fontSize: 14, color: "var(--ink)", margin: 0 }}>
