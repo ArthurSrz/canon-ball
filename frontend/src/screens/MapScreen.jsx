@@ -18,15 +18,35 @@ export default function MapScreen({ data, playful, go, runKey, replay, motion })
             Each marker is one shot — where that answer settled.
             <strong> Click any shot to read what the model actually said.</strong>
           </p>
+          {data.truncatedShots > 0 && (
+            <p className="rail-note" style={{ color: "var(--test)", margin: 0 }}>
+              ⚠ {data.truncatedShots} of {data.N * 2} shots hit the {data.setup?.maxTokens || "token"} budget
+              and stopped mid-answer — their landing zones are measured on a cut answer.
+            </p>
+          )}
           <div className="panel" style={{ borderColor: picked ? picked.warm ? "var(--test)" : "var(--control)" : "var(--line)", transition: "border-color .2s", minHeight: 116 }}>
             {picked ? (
               <div>
                 <div className="panel-label" style={{ color: picked.warm ? "var(--test)" : "var(--control)" }}>
                   {picked.warm ? "TEST" : "CONTROL"} · shot {picked.idx + 1} of {data.N}
                 </div>
-                <p style={{ fontFamily: "var(--display)", fontSize: 21, lineHeight: 1.35, margin: 0 }}>
+                {/* A long answer scrolls inside the card rather than stretching the
+                    column; the type steps down once it stops being a one-liner. */}
+                <p style={{
+                  fontFamily: "var(--display)",
+                  fontSize: (picked.output || "").length > 420 ? 16 : 21,
+                  lineHeight: 1.35, margin: 0,
+                  maxHeight: "46vh", overflowY: "auto",
+                  whiteSpace: "pre-wrap",
+                }}>
                   "{picked.output}"
                 </p>
+                {picked.truncated && (
+                  <div className="rail-note" style={{ marginTop: 10, color: "var(--test)" }}>
+                    ⚠ cut at the token budget{data.setup?.maxTokens ? ` (${data.setup.maxTokens} tokens)` : ""}
+                    {" "}— this shot did not finish. Raise it and fire again to read the whole answer.
+                  </div>
+                )}
               </div>
             ) : (
               <div style={{ display: "grid", placeItems: "center", minHeight: 92, textAlign: "center" }}>

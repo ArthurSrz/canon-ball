@@ -54,6 +54,9 @@ def _normalize_projection(projection: dict, trials_ctrl: list[dict], trials_test
                 "centroid": norm(centroids[i]),
                 "chunks": chunks,
                 "output": t["raw_output"],
+                # So the reader is never left guessing why an answer stops mid-sentence.
+                "truncated": bool(t.get("truncated")),
+                "finishReason": t.get("finish_reason", ""),
             })
         return result
 
@@ -85,6 +88,10 @@ def _build_response(experiment_data: dict, analysis: dict) -> dict:
     )
 
     tightening = (1 - comparison["dispersion_ratio"]) * 100 if comparison["dispersion_ratio"] else 0
+    truncated_shots = sum(
+        1 for t in experiment_data["control_trials"] + experiment_data["test_trials"]
+        if t.get("truncated")
+    )
 
     return {
         "setup": {
@@ -98,10 +105,13 @@ def _build_response(experiment_data: dict, analysis: dict) -> dict:
             "controlKnowledgeForm": experiment_data.get("control_knowledge_form", "none"),
             "controlLayer": experiment_data.get("control_layer", ""),
             "testLayer": experiment_data.get("test_layer", experiment_data["knowledge_layer"]),
+            "maxTokens": experiment_data.get("max_tokens", 0),
         },
         "control": groups["control"],
         "test": groups["test"],
         "N": experiment_data["n_trials"],
+        # How many shots in this volley hit the token budget instead of finishing.
+        "truncatedShots": truncated_shots,
         "comparison": {
             "controlMeanDispersion": comparison["control_mean_dispersion"],
             "testMeanDispersion": comparison["test_mean_dispersion"],
@@ -123,6 +133,7 @@ def _run_experiment_sync(req: FireRequest, experiment_id: str):
         injection_mode=req.injection_mode,
         knowledge_form=req.knowledge_form,
         control_knowledge_form=req.control_knowledge_form,
+        max_tokens=req.max_tokens,
     )
     ce.save_experiment(run)
 

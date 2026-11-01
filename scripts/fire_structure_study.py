@@ -71,13 +71,13 @@ def _install_dry_run_stubs():
         "The descent is where the real accounting happens.",
     ]
 
-    def fake_chat(messages: list[dict]) -> tuple[str, float]:
+    def fake_chat(messages: list[dict], max_tokens: int | None = None) -> tuple[str, float, str]:
         loaded = sum(len(m["content"]) for m in messages)
         rng = random.Random(loaded * 7919 + random.randint(0, 10_000))
         # A longer, more structured layer narrows what the stand-in model says.
         spread = max(2, 6 - loaded // 400)
         picks = rng.sample(sentences[:spread] or sentences[:2], k=min(3, spread))
-        return " ".join(picks), 1.0
+        return " ".join(picks), 1.0, "stop"
 
     def fake_embed(texts: list[str]) -> list[list[float]]:
         out = []

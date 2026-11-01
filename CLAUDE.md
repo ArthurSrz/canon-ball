@@ -22,6 +22,7 @@ cd frontend && npm run dev
 Set API keys in `.env` (see `.env.example`):
 - `OPENROUTER_API_KEY` — required for trial generation (gemma-3-4b-it)
 - `NEURONPEDIA_API_KEY` — optional, raises rate limits for Circuit Tracer
+- `CANON_MAX_OUTPUT_TOKENS` — optional, tokens one shot may generate (default 512)
 - `KS_EXTRACTION_MODEL` — optional, the OpenRouter slug the two knowledge-layer extraction passes run on (default in `concept_extractor.DEFAULT_EXTRACTION_MODEL`)
 
 ## Architecture
@@ -51,6 +52,8 @@ Set API keys in `.env` (see `.env.example`):
 
 ## Key design details
 
+- **Output budget is an experimental variable, not a constant.** One shot generates at most `canon_experiment.DEFAULT_MAX_OUTPUT_TOKENS` (512), overridable per volley via `FireRequest.max_tokens` or globally via `CANON_MAX_OUTPUT_TOKENS`. It was hard-coded at 150, which cut nearly every answer mid-sentence. Raising it is not free: a longer answer is cut into more chunks by `tokenize_output`, each chunk is embedded, and the dispersion is computed over those chunks — so two volleys are only comparable if they were fired on the same budget. The volley records the budget it used (`setup.maxTokens`).
+- **A cut shot says it was cut.** The backend's `finish_reason` is carried onto each `Trial` (`finish_reason`, `truncated`), out through the API per shot (`truncated`, `finishReason`) and as a volley-level count (`truncatedShots`), and shown in the map screen. A shot that stops because it ran out of budget must never read as a short answer — its landing zone was measured on an unfinished one.
 - **Chain-centric**: The Borges chain is THE central artifact. Dispersion measures the WHAT, chain shows the WHY.
 - **Two chains per experiment**: 1 control + 1 with KL (not per-trial — rate limits).
 - **Models**: gemma-3-4b-it (OpenRouter) for trials, gemma-2-2b (Neuronpedia Circuit Tracer) for attribution, gemma-3-27b-it (NLA layer 41) for verbalization.

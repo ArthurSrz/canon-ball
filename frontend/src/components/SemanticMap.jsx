@@ -183,6 +183,8 @@ export default function SemanticMap({
                   idx: shot.idx,
                   warm: shot.group === 'test',
                   output: shot.output,
+                  truncated: shot.truncated,
+                  finishReason: shot.finishReason,
                 })}
                 onMouseEnter={() => setHover(shot)}
                 onMouseLeave={() => setHover(null)}

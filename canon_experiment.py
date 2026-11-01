@@ -25,6 +25,23 @@ _fastembed_model = None
 _backend_cache: str | None = None
 
 
+# How many tokens a single shot may generate.
+#
+# This was 150, which cut almost every answer gemma gives mid-sentence — the shot card
+# then showed a sentence that simply stopped, with nothing saying why. The budget is a
+# knob now, because raising it is not free: an answer that runs twice as long is cut into
+# more chunks, each chunk is embedded, and the dispersion is computed over those chunks.
+# Change it and the numbers move, so a volley records the budget it was fired with.
+DEFAULT_MAX_OUTPUT_TOKENS = 512
+
+
+def default_max_output_tokens() -> int:
+    raw = os.environ.get("CANON_MAX_OUTPUT_TOKENS", "").strip()
+    if raw.isdigit() and int(raw) > 0:
+        return int(raw)
+    return DEFAULT_MAX_OUTPUT_TOKENS
+
+
 INJECTION_MODES = {
     "system_user": "System → User",
     "interleave": "Interleaved",
@@ -75,23 +92,26 @@ def _get_fastembed():
     return _fastembed_model
 
 
-def chat_ollama(messages: list[dict]) -> tuple[str, float]:
+def chat_ollama(messages: list[dict], max_tokens: int) -> tuple[str, float, str]:
     t0 = time.time()
     resp = requests.post(f"{OLLAMA_BASE}/api/chat", json={
         "model": "qwen2.5:3b",
         "messages": messages,
         "stream": False,
-        "options": {"temperature": 0.8, "seed": -1}
+        "options": {"temperature": 0.8, "seed": -1, "num_predict": max_tokens}
     })
     latency = (time.time() - t0) * 1000
     resp.raise_for_status()
-    return resp.json()["message"]["content"], latency
+    body = resp.json()
+    # ollama says "length" when it hit num_predict, "stop" when the model finished.
+    reason = body.get("done_reason") or ("length" if not body.get("done", True) else "stop")
+    return body["message"]["content"], latency, reason
 
 
-def chat_openrouter(messages: list[dict]) -> tuple[str, float]:
+def chat_openrouter(messages: list[dict], max_tokens: int) -> tuple[str, float, str]:
     hf_key = os.environ.get("HF_API_KEY", "")
     if hf_key:
-        return _chat_hf(messages, hf_key)
+        return _chat_hf(messages, hf_key, max_tokens)
     key = _get_openrouter_key()
     if not key:
         raise RuntimeError("No OPENROUTER_API_KEY or HF_API_KEY set.")
@@ -100,7 +120,7 @@ def chat_openrouter(messages: list[dict]) -> tuple[str, float]:
         "model": "google/gemma-3-4b-it",
         "messages": messages,
         "temperature": 0.8,
-        "max_tokens": 150,
+        "max_tokens": max_tokens,
     }, headers={
         "Authorization": f"Bearer {key}",
         "Content-Type": "application/json",
@@ -110,10 +130,11 @@ def chat_openrouter(messages: list[dict]) -> tuple[str, float]:
     latency = (time.time() - t0) * 1000
     if resp.status_code != 200:
         raise RuntimeError(f"OpenRouter {resp.status_code}: {resp.text[:500]}")
-    return resp.json()["choices"][0]["message"]["content"], latency
+    choice = resp.json()["choices"][0]
+    return choice["message"]["content"], latency, choice.get("finish_reason") or ""
 
 
-def _chat_hf(messages: list[dict], key: str) -> tuple[str, float]:
+def _chat_hf(messages: list[dict], key: str, max_tokens: int) -> tuple[str, float, str]:
     # gemma-2-2b-it on featherless-ai doesn't support system role — fold into user
     normalized = []
     for m in messages:
@@ -129,7 +150,7 @@ def _chat_hf(messages: list[dict], key: str) -> tuple[str, float]:
         json={
             "model": "google/gemma-2-2b-it",
             "messages": normalized,
-            "max_tokens": 150,
+            "max_tokens": max_tokens,
             "temperature": 0.8,
         },
         timeout=60,
@@ -137,7 +158,8 @@ def _chat_hf(messages: list[dict], key: str) -> tuple[str, float]:
     latency = (time.time() - t0) * 1000
     if resp.status_code != 200:
         raise RuntimeError(f"HF {resp.status_code}: {resp.text[:300]}")
-    return resp.json()["choices"][0]["message"]["content"].strip(), latency
+    choice = resp.json()["choices"][0]
+    return choice["message"]["content"].strip(), latency, choice.get("finish_reason") or ""
 
 
 def embed_ollama(texts: list[str]) -> list[list[float]]:
@@ -155,10 +177,12 @@ def embed_fastembed(texts: list[str]) -> list[list[float]]:
     return [e.tolist() for e in embeddings]
 
 
-def chat(messages: list[dict]) -> tuple[str, float]:
+def chat(messages: list[dict], max_tokens: int | None = None) -> tuple[str, float, str]:
+    """One completion. Returns (text, latency_ms, finish_reason)."""
+    budget = max_tokens or default_max_output_tokens()
     if _get_backend() == "ollama":
-        return chat_ollama(messages)
-    return chat_openrouter(messages)
+        return chat_ollama(messages, budget)
+    return chat_openrouter(messages, budget)
 
 
 def embed_texts(texts: list[str]) -> list[list[float]]:
@@ -178,6 +202,11 @@ class Trial:
     embeddings: list[list[float]]
     latency_ms: float
     knowledge_form: str = "none"
+    # How the generation ended, straight from the backend ("stop", "length", …), and the
+    # reading of it that matters: a shot that hit the budget was cut, not answered.
+    finish_reason: str = ""
+    truncated: bool = False
+    max_tokens: int = 0
 
 
 @dataclass
@@ -188,6 +217,7 @@ class ExperimentRun:
     injection_mode: str = "system_user"
     knowledge_form: str = "prose"
     control_knowledge_form: str = "none"
+    max_tokens: int = 0
     control_layer: str = ""
     test_layer: str = ""
     control_trials: list[Trial] = field(default_factory=list)
@@ -245,14 +275,16 @@ def assemble_chain_text(prompt: str, knowledge_layer: str, mode: str) -> str:
 
 def run_single_trial(trial_type: str, index: int, prompt: str, knowledge_layer: str,
                      injection_mode: str = "system_user",
-                     knowledge_form: str = "none") -> Trial:
+                     knowledge_form: str = "none",
+                     max_tokens: int | None = None) -> Trial:
     """Fire one shot. `knowledge_layer` is the layer already rendered for this arm —
     an empty string means a bare shot, whichever arm it belongs to."""
     if knowledge_layer:
         messages = assemble_messages(prompt, knowledge_layer, injection_mode)
     else:
         messages = [{"role": "user", "content": prompt}]
-    raw_output, latency = chat(messages)
+    budget = max_tokens or default_max_output_tokens()
+    raw_output, latency, finish_reason = chat(messages, budget)
     chunks = tokenize_output(raw_output)
 
     if not chunks:
@@ -269,7 +301,10 @@ def run_single_trial(trial_type: str, index: int, prompt: str, knowledge_layer: 
         raw_output=raw_output,
         output_tokens=chunks,
         embeddings=embeddings,
-        latency_ms=latency
+        latency_ms=latency,
+        finish_reason=finish_reason,
+        truncated=finish_reason == "length",
+        max_tokens=budget,
     )
 
 
@@ -277,6 +312,7 @@ def run_experiment(prompt: str, knowledge_layer: str, n_trials: int = 12,
                    injection_mode: str = "system_user",
                    knowledge_form: str = "prose",
                    control_knowledge_form: str = "none",
+                   max_tokens: int | None = None,
                    progress_callback=None) -> ExperimentRun:
     """Fire a paired volley.
 
@@ -285,6 +321,7 @@ def run_experiment(prompt: str, knowledge_layer: str, n_trials: int = 12,
     bare (the classic knowledge-vs-nothing volley); set it to "prose" and the volley
     measures what *structure* adds on top of the same facts.
     """
+    budget = max_tokens or default_max_output_tokens()
     control_layer = ("" if control_knowledge_form == "none"
                      else ks.structure_knowledge(knowledge_layer, control_knowledge_form))
     test_layer = ks.structure_knowledge(knowledge_layer, knowledge_form)
@@ -296,6 +333,7 @@ def run_experiment(prompt: str, knowledge_layer: str, n_trials: int = 12,
         injection_mode=injection_mode,
         knowledge_form=knowledge_form,
         control_knowledge_form=control_knowledge_form,
+        max_tokens=budget,
         control_layer=control_layer,
         test_layer=test_layer,
         timestamp=time.strftime("%Y-%m-%dT%H:%M:%S")
@@ -304,14 +342,14 @@ def run_experiment(prompt: str, knowledge_layer: str, n_trials: int = 12,
     total = n_trials * 2
     for i in range(n_trials):
         trial = run_single_trial("control", i, prompt, control_layer, injection_mode,
-                                 control_knowledge_form)
+                                 control_knowledge_form, budget)
         run.control_trials.append(trial)
         if progress_callback:
             progress_callback((i + 1) / total, f"Control trial {i+1}/{n_trials}")
 
     for i in range(n_trials):
         trial = run_single_trial("test", i, prompt, test_layer, injection_mode,
-                                 knowledge_form)
+                                 knowledge_form, budget)
         run.test_trials.append(trial)
         if progress_callback:
             progress_callback((n_trials + i + 1) / total, f"Test trial {i+1}/{n_trials}")
